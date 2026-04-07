@@ -61,9 +61,8 @@ function connect(token: string, url: string) {
 
   ws = new WebSocket(url)
 
-  ws.onopen = () => {
-    send({ type: 'connect', params: { auth: { token } } })
-  }
+  // onopen 不发 connect —— 等服务端先发 connect.challenge
+  ws.onopen = () => { /* 等待 connect.challenge */ }
 
   ws.onmessage = (e) => {
     let frame: Record<string, unknown>
@@ -78,6 +77,27 @@ function connect(token: string, url: string) {
 
     if (frame.type === 'event') {
       const ev = frame.event as string
+
+      // 服务端发出挑战 → 用 nonce + token 响应
+      if (ev === 'connect.challenge') {
+        const { nonce } = (frame.payload ?? {}) as { nonce?: string }
+        send({
+          type: 'req',
+          id: crypto.randomUUID(),
+          method: 'connect',
+          params: {
+            minProtocol: 3,
+            maxProtocol: 3,
+            client: { id: 'jclaw-web', version: '1.0.0', platform: 'web', mode: 'client' },
+            role: 'client',
+            scopes: [],
+            auth: { token },
+            ...(nonce ? { device: { nonce } } : {}),
+          },
+        })
+        return
+      }
+
       if (ev === 'hello-ok' || ev === 'connect-ok') {
         status.value = 'connected'
         retryCount = 0
