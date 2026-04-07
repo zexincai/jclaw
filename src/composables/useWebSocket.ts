@@ -65,6 +65,7 @@ function connect(token: string, url: string) {
   ws.onopen = () => { /* 等待 connect.challenge */ }
 
   ws.onmessage = (e) => {
+    console.log('Received message:', e.data)
     let frame: Record<string, unknown>
     try { frame = JSON.parse(e.data) } catch { return }
 
@@ -72,6 +73,13 @@ function connect(token: string, url: string) {
       const id = frame.id as string
       const resolve = pendingRequests.get(id)
       if (resolve) { resolve(frame); pendingRequests.delete(id) }
+      // connect 握手响应：服务端以 res 帧返回，payload.type === 'hello-ok'
+      const payload = frame.payload as Record<string, unknown> | undefined
+      if (frame.ok && payload?.type === 'hello-ok') {
+        status.value = 'connected'
+        retryCount = 0
+        emit('connected', payload)
+      }
       return
     }
 
