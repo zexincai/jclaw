@@ -9,6 +9,7 @@ type EventHandler = (payload: unknown) => void
 
 const RETRY_DELAYS = [1000, 2000, 4000, 8000, 16000, 30000]
 const MAX_RETRIES = 10
+const DEVICE_KEY_STORAGE = 'jclaw_device_keypair'
 
 // ── 模块级单例状态 ──────────────────────────────────────────────
 const status = ref<WsStatus>('disconnected')
@@ -20,6 +21,57 @@ let savedToken = ''
 let savedUrl = ''
 const handlers = new Map<string, Set<EventHandler>>()
 const pendingRequests = new Map<string, (res: unknown) => void>()
+// ────────────────────────────────────────────────────────────────
+
+// ── 设备身份（Ed25519） ──────────────────────────────────────────
+interface StoredKeyPair {
+  privateKeyJwk: JsonWebKey
+  publicKeyBase64: string
+  deviceId: string
+}
+
+let deviceKeyCache: { privateKey: CryptoKey; publicKeyBase64: string; deviceId: string } | null = null
+
+async function getDeviceKey() {
+  if (deviceKeyCache) return deviceKeyCache
+
+  const stored = localStorage.getItem(DEVICE_KEY_STORAGE)
+  if (stored) {
+    try {
+      const { privateKeyJwk, publicKeyBase64, deviceId } = JSON.parse(stored) as StoredKeyPair
+      const privateKey = await crypto.subtle.importKey(
+        'jwk',
+        privateKeyJwk,
+        { name: 'Ed25519' },
+        false,
+        ['sign'],
+      )
+      deviceKeyCache = { privateKey, publicKeyBase64, deviceId }
+      return deviceKeyCache
+    } catch { /* regenerate below */ }
+  }
+
+  const keyPair = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify'])
+  const pubRaw = await crypto.subtle.exportKey('raw', keyPair.publicKey)
+  const publicKeyBase64 = btoa(String.fromCharCode(...new Uint8Array(pubRaw)))
+
+  const hashBuf = await crypto.subtle.digest('SHA-256', pubRaw)
+  const deviceId = btoa(String.fromCharCode(...new Uint8Array(hashBuf)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '').substring(0, 22)
+
+  const privateKeyJwk = await crypto.subtle.exportKey('jwk', keyPair.privateKey)
+  const toStore: StoredKeyPair = { privateKeyJwk, publicKeyBase64, deviceId }
+  localStorage.setItem(DEVICE_KEY_STORAGE, JSON.stringify(toStore))
+
+  deviceKeyCache = { privateKey: keyPair.privateKey, publicKeyBase64, deviceId }
+  return deviceKeyCache
+}
+
+async function signNonce(nonce: string): Promise<string> {
+  const { privateKey } = await getDeviceKey()
+  const sig = await crypto.subtle.sign('Ed25519', privateKey, new TextEncoder().encode(nonce))
+  return btoa(String.fromCharCode(...new Uint8Array(sig)))
+}
 // ────────────────────────────────────────────────────────────────
 
 function on(event: string, handler: EventHandler) {
@@ -64,7 +116,7 @@ function connect(token: string, url: string) {
   // onopen 不发 connect —— 等服务端先发 connect.challenge
   ws.onopen = () => { /* 等待 connect.challenge */ }
 
-  ws.onmessage = (e) => {
+  ws.onmessage = async (e) => {
     console.log('Received message:', e.data)
     let frame: Record<string, unknown>
     try { frame = JSON.parse(e.data) } catch { return }
@@ -86,9 +138,11 @@ function connect(token: string, url: string) {
     if (frame.type === 'event') {
       const ev = frame.event as string
 
-      // 服务端发出挑战 → 用 nonce + token 响应
+      // 服务端发出挑战 → 用设备密钥签名 nonce 响应
       if (ev === 'connect.challenge') {
         const { nonce } = (frame.payload ?? {}) as { nonce?: string }
+        const device = await getDeviceKey()
+        const signature = nonce ? await signNonce(nonce) : ''
         send({
           type: 'req',
           id: crypto.randomUUID(),
@@ -96,23 +150,28 @@ function connect(token: string, url: string) {
           params: {
             minProtocol: 3,
             maxProtocol: 3,
-            client: { id: 'jclaw-web', version: '1.0.0', platform: 'web', mode: 'client' },
-            role: 'client',
-            scopes: [],
+            client: { id: 'web', version: '1.0.0', platform: 'web', mode: 'operator' },
+            role: 'operator',
+            scopes: ['operator.read', 'operator.write'],
+            caps: [],
+            commands: [],
+            permissions: {},
             auth: { token },
-            ...(nonce ? { device: { nonce } } : {}),
+            locale: navigator.language || 'zh-CN',
+            userAgent: navigator.userAgent,
+            device: {
+              id: device.deviceId,
+              publicKey: device.publicKeyBase64,
+              signature,
+              signedAt: Date.now(),
+              nonce,
+            },
           },
         })
         return
       }
 
-      if (ev === 'hello-ok' || ev === 'connect-ok') {
-        status.value = 'connected'
-        retryCount = 0
-        emit('connected', frame.payload)
-      } else {
-        emit(ev, frame.payload)
-      }
+      emit(ev, frame.payload)
     }
   }
 
