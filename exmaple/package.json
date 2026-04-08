@@ -1,0 +1,43 @@
+{
+  "name": "clawapp",
+  "version": "1.9.0",
+  "private": true,
+  "description": "ClawApp - OpenClaw AI 智能体的 H5 移动端聊天客户端",
+  "homepage": "https://clawapp.qt.cool",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/qingchencloud/clawapp.git"
+  },
+  "scripts": {
+    "dev:server": "cd server && node index.js",
+    "dev:h5": "cd h5 && npx vite --host",
+    "dev:desktop": "cd electron && npx electron .",
+    "build:h5": "cd h5 && npx vite build",
+    "build:desktop": "npm run build:h5 && cd electron && npx electron-builder --win --mac --linux",
+    "build:desktop:win": "npm run build:h5 && cd electron && npx electron-builder --win",
+    "build:desktop:mac": "npm run build:h5 && cd electron && npx electron-builder --mac",
+    "build:desktop:linux": "npm run build:h5 && cd electron && npx electron-builder --linux",
+    "start": "cd server && node index.js",
+    "install:all": "cd server && npm install && cd ../h5 && npm install && cd ../electron && npm install"
+  },
+  "keywords": [
+    "openclaw",
+    "clawapp",
+    "h5",
+    "mobile",
+    "chat",
+    "websocket",
+    "ai-agent"
+  ],
+  "author": "武汉晴辰天下网络科技有限公司 <contact@qingchencloud.com>",
+  "license": "MIT",
+  "dependencies": {
+    "vite-plugin-pwa": "^1.2.0"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.1.0",
+    "@capacitor/cli": "^8.1.0",
+    "@capacitor/core": "^8.1.0",
+    "typescript": "^5.9.3"
+  }
+}
