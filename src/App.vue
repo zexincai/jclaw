@@ -42,7 +42,7 @@ ws.on('max-retries', () => {
 
 // AI 流结束后刷新用量
 ws.on('chat', (p: unknown) => {
-  if ((p as { done?: boolean }).done) refreshUsage()
+  if ((p as { state?: string }).state === 'final') refreshUsage()
 })
 
 onMounted(() => {

@@ -1,0 +1,60 @@
+{
+  "name": "clawapp-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ClawApp 桌面客户端",
+  "main": "main.js",
+  "author": "武汉晴辰天下网络科技有限公司 <contact@qingchencloud.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/qingchencloud/clawapp.git"
+  },
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "build:all": "electron-builder --win --mac --linux"
+  },
+  "build": {
+    "appId": "com.qingchencloud.clawapp",
+    "productName": "ClawApp",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "icon.png"
+    ],
+    "extraResources": [
+      {
+        "from": "../h5/dist",
+        "to": "h5/dist"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "icon.png"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "icon.png",
+      "category": "public.app-category.productivity"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "icon.png",
+      "category": "Network"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "ClawApp"
+    }
+  },
+  "devDependencies": {
+    "electron": "^40.6.1",
+    "electron-builder": "^26.8.1"
+  }
+}

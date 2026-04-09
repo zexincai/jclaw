@@ -2,203 +2,291 @@
  * 模块级单例 WebSocket —— 整个应用共享一个连接实例
  * 所有组件调用 useWebSocket() 返回同一个对象
  */
-import { ref } from 'vue'
+import { ref } from "vue";
 
-type WsStatus = 'connecting' | 'connected' | 'disconnected'
-type EventHandler = (payload: unknown) => void
+type WsStatus = "connecting" | "connected" | "disconnected";
+type EventHandler = (payload: unknown) => void;
 
-const RETRY_DELAYS = [1000, 2000, 4000, 8000, 16000, 30000]
-const MAX_RETRIES = 10
-const DEVICE_KEY_STORAGE = 'jclaw_device_keypair'
+const RETRY_DELAYS = [1000, 2000, 4000, 8000, 16000, 30000];
+const MAX_RETRIES = 10;
+const DEVICE_KEY_STORAGE = "jclaw_device_keypair_v2";
 
 // ── 模块级单例状态 ──────────────────────────────────────────────
-const status = ref<WsStatus>('disconnected')
-let ws: WebSocket | null = null
-let retryCount = 0
-let retryTimer: ReturnType<typeof setTimeout> | null = null
-let shouldReconnect = true
-let savedToken = ''
-let savedUrl = ''
-const handlers = new Map<string, Set<EventHandler>>()
-const pendingRequests = new Map<string, (res: unknown) => void>()
+const status = ref<WsStatus>("disconnected");
+let ws: WebSocket | null = null;
+let retryCount = 0;
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+let connectTimer: ReturnType<typeof setTimeout> | null = null;
+let shouldReconnect = true;
+let savedToken = "000951b3082a5af89c06e1429dec1627682bf74e6c900b44";
+let savedUrl = "";
+const handlers = new Map<string, Set<EventHandler>>();
+const pendingRequests = new Map<string, (res: unknown) => void>();
 // ────────────────────────────────────────────────────────────────
 
 // ── 设备身份（Ed25519） ──────────────────────────────────────────
 interface StoredKeyPair {
-  privateKeyJwk: JsonWebKey
-  publicKeyBase64: string
-  deviceId: string
+  privateKeyJwk: JsonWebKey;
+  publicKeyBase64: string;
+  deviceId: string;
 }
 
-let deviceKeyCache: { privateKey: CryptoKey; publicKeyBase64: string; deviceId: string } | null = null
+let deviceKeyCache: {
+  privateKey: CryptoKey;
+  publicKeyBase64: string;
+  deviceId: string;
+} | null = null;
 
 async function getDeviceKey() {
-  if (deviceKeyCache) return deviceKeyCache
+  if (deviceKeyCache) return deviceKeyCache;
 
-  const stored = localStorage.getItem(DEVICE_KEY_STORAGE)
+  const stored = localStorage.getItem(DEVICE_KEY_STORAGE);
   if (stored) {
     try {
-      const { privateKeyJwk, publicKeyBase64, deviceId } = JSON.parse(stored) as StoredKeyPair
+      const { privateKeyJwk, publicKeyBase64, deviceId } = JSON.parse(
+        stored,
+      ) as StoredKeyPair;
       const privateKey = await crypto.subtle.importKey(
-        'jwk',
+        "jwk",
         privateKeyJwk,
-        { name: 'Ed25519' },
+        { name: "Ed25519" },
         false,
-        ['sign'],
-      )
-      deviceKeyCache = { privateKey, publicKeyBase64, deviceId }
-      return deviceKeyCache
-    } catch { /* regenerate below */ }
+        ["sign"],
+      );
+      deviceKeyCache = { privateKey, publicKeyBase64, deviceId };
+      return deviceKeyCache;
+    } catch {
+      /* regenerate below */
+    }
   }
 
-  const keyPair = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify'])
-  const pubRaw = await crypto.subtle.exportKey('raw', keyPair.publicKey)
-  const publicKeyBase64 = btoa(String.fromCharCode(...new Uint8Array(pubRaw)))
+  const keyPair = await crypto.subtle.generateKey({ name: "Ed25519" }, true, [
+    "sign",
+    "verify",
+  ]);
+  const pubRaw = await crypto.subtle.exportKey("raw", keyPair.publicKey);
+  const publicKeyBase64 = base64UrlEncode(new Uint8Array(pubRaw));
 
-  const hashBuf = await crypto.subtle.digest('SHA-256', pubRaw)
-  const deviceId = btoa(String.fromCharCode(...new Uint8Array(hashBuf)))
-    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '').substring(0, 22)
+  const hashBuf = await crypto.subtle.digest("SHA-256", pubRaw);
+  const deviceId = Array.from(new Uint8Array(hashBuf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 
-  const privateKeyJwk = await crypto.subtle.exportKey('jwk', keyPair.privateKey)
-  const toStore: StoredKeyPair = { privateKeyJwk, publicKeyBase64, deviceId }
-  localStorage.setItem(DEVICE_KEY_STORAGE, JSON.stringify(toStore))
+  const privateKeyJwk = await crypto.subtle.exportKey(
+    "jwk",
+    keyPair.privateKey,
+  );
+  const toStore: StoredKeyPair = { privateKeyJwk, publicKeyBase64, deviceId };
+  localStorage.setItem(DEVICE_KEY_STORAGE, JSON.stringify(toStore));
 
-  deviceKeyCache = { privateKey: keyPair.privateKey, publicKeyBase64, deviceId }
-  return deviceKeyCache
+  deviceKeyCache = {
+    privateKey: keyPair.privateKey,
+    publicKeyBase64,
+    deviceId,
+  };
+  return deviceKeyCache;
 }
 
-async function signNonce(nonce: string): Promise<string> {
-  const { privateKey } = await getDeviceKey()
-  const sig = await crypto.subtle.sign('Ed25519', privateKey, new TextEncoder().encode(nonce))
-  return btoa(String.fromCharCode(...new Uint8Array(sig)))
+function base64UrlEncode(data: Uint8Array): string {
+  const base64 = btoa(String.fromCharCode(...data));
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+}
+
+async function signPayload(payload: string): Promise<string> {
+  const { privateKey } = await getDeviceKey();
+  const sig = await crypto.subtle.sign(
+    "Ed25519",
+    privateKey,
+    new TextEncoder().encode(payload),
+  );
+  return base64UrlEncode(new Uint8Array(sig));
 }
 // ────────────────────────────────────────────────────────────────
 
 function on(event: string, handler: EventHandler) {
-  if (!handlers.has(event)) handlers.set(event, new Set())
-  handlers.get(event)!.add(handler)
-  return () => handlers.get(event)?.delete(handler)
+  if (!handlers.has(event)) handlers.set(event, new Set());
+  handlers.get(event)!.add(handler);
+  return () => handlers.get(event)?.delete(handler);
 }
 
 function emit(event: string, payload: unknown) {
-  handlers.get(event)?.forEach(h => h(payload))
+  handlers.get(event)?.forEach((h) => h(payload));
 }
 
 function send(frame: object) {
   if (ws?.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(frame))
+    ws.send(JSON.stringify(frame));
   }
+}
+
+async function sendConnectFrame(nonce: string = "") {
+  const device = await getDeviceKey();
+  const signedAt = Date.now();
+  const SCOPES = [
+    "operator.admin",
+    "operator.approvals",
+    "operator.pairing",
+    "operator.read",
+    "operator.write",
+  ];
+  const payload = [
+    "v2",
+    device.deviceId,
+    "gateway-client",
+    "backend",
+    "operator",
+    SCOPES.join(","),
+    String(signedAt),
+    savedToken,
+    nonce,
+  ].join("|");
+  const signature = await signPayload(payload);
+  send({
+    type: "req",
+    id: crypto.randomUUID(),
+    method: "connect",
+    params: {
+      minProtocol: 3,
+      maxProtocol: 3,
+      client: {
+        id: "gateway-client",
+        version: "1.0.0",
+        platform: "web",
+        mode: "backend",
+      },
+      role: "operator",
+      scopes: SCOPES,
+      caps: [],
+      auth: { token: savedToken },
+      device: {
+        id: device.deviceId,
+        publicKey: device.publicKeyBase64,
+        signedAt,
+        nonce,
+        signature,
+      },
+      locale: "zh-CN",
+      userAgent: navigator.userAgent,
+    },
+  });
 }
 
 function request(method: string, params: object = {}): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    const id = crypto.randomUUID()
-    pendingRequests.set(id, resolve)
-    send({ type: 'req', id, method, params })
+    const id = crypto.randomUUID();
+    pendingRequests.set(id, resolve);
+    send({ type: "req", id, method, params });
     setTimeout(() => {
       if (pendingRequests.has(id)) {
-        pendingRequests.delete(id)
-        reject(new Error(`Request timeout: ${method}`))
+        pendingRequests.delete(id);
+        reject(new Error(`Request timeout: ${method}`));
       }
-    }, 15000)
-  })
+    }, 15000);
+  });
 }
 
 function connect(token: string, url: string) {
-  savedToken = token
-  savedUrl = url
-  shouldReconnect = true
-  if (ws) { ws.onclose = null; ws.close() }
-  status.value = 'connecting'
+  savedToken = token;
+  savedUrl = url;
+  shouldReconnect = true;
+  if (ws) {
+    ws.onclose = null;
+    ws.close();
+  }
+  status.value = "connecting";
 
-  ws = new WebSocket(url)
+  ws = new WebSocket(url);
 
   // onopen 不发 connect —— 等服务端先发 connect.challenge
-  ws.onopen = () => { /* 等待 connect.challenge */ }
+  ws.onopen = () => {
+    // 等待短暂时间看是否收到 challenge，否则直接发送 connect
+    connectTimer = setTimeout(() => {
+      if (status.value === "connecting") {
+        sendConnectFrame("");
+      }
+    }, 500);
+  };
 
   ws.onmessage = async (e) => {
-    console.log('Received message:', e.data)
-    let frame: Record<string, unknown>
-    try { frame = JSON.parse(e.data) } catch { return }
+    console.log("Received message:", e.data);
+    let frame: Record<string, unknown>;
+    try {
+      frame = JSON.parse(e.data);
+    } catch {
+      return;
+    }
 
-    if (frame.type === 'res') {
-      const id = frame.id as string
-      const resolve = pendingRequests.get(id)
-      if (resolve) { resolve(frame); pendingRequests.delete(id) }
+    if (frame.type === "res") {
+      const id = frame.id as string;
+      const resolve = pendingRequests.get(id);
+      if (resolve) {
+        resolve(frame);
+        pendingRequests.delete(id);
+      }
       // connect 握手响应：服务端以 res 帧返回，payload.type === 'hello-ok'
-      const payload = frame.payload as Record<string, unknown> | undefined
-      if (frame.ok && payload?.type === 'hello-ok') {
-        status.value = 'connected'
-        retryCount = 0
-        emit('connected', payload)
+      const payload = frame.payload as Record<string, unknown> | undefined;
+      if (frame.ok && payload?.type === "hello-ok") {
+        status.value = "connected";
+        retryCount = 0;
+        // 从 snapshot 中提取 sessionKey
+        const snapshot = payload.snapshot as Record<string, unknown> | undefined;
+        const sessionDefaults = snapshot?.sessionDefaults as Record<string, unknown> | undefined;
+        const sessionKey =
+          (sessionDefaults?.mainSessionKey as string) ||
+          `agent:${(sessionDefaults?.defaultAgentId as string) || "main"}:main`;
+        emit("connected", { ...payload, sessionKey });
       }
-      return
+      return;
     }
 
-    if (frame.type === 'event') {
-      const ev = frame.event as string
+    if (frame.type === "event") {
+      const ev = frame.event as string;
 
-      // 服务端发出挑战 → 用设备密钥签名 nonce 响应
-      if (ev === 'connect.challenge') {
-        const { nonce } = (frame.payload ?? {}) as { nonce?: string }
-        const device = await getDeviceKey()
-        const signature = nonce ? await signNonce(nonce) : ''
-        send({
-          type: 'req',
-          id: crypto.randomUUID(),
-          method: 'connect',
-          params: {
-            minProtocol: 3,
-            maxProtocol: 3,
-            client: { id: 'web', version: '1.0.0', platform: 'web', mode: 'operator' },
-            role: 'operator',
-            scopes: ['operator.read', 'operator.write'],
-            caps: [],
-            commands: [],
-            permissions: {},
-            auth: { token },
-            locale: navigator.language || 'zh-CN',
-            userAgent: navigator.userAgent,
-            device: {
-              id: device.deviceId,
-              publicKey: device.publicKeyBase64,
-              signature,
-              signedAt: Date.now(),
-              nonce,
-            },
-          },
-        })
-        return
+      // 服务端发出挑战 → 用设备密钥签名完整 payload 响应
+      if (ev === "connect.challenge") {
+        if (connectTimer) {
+          clearTimeout(connectTimer);
+          connectTimer = null;
+        }
+        const { nonce } = (frame.payload ?? {}) as { nonce?: string };
+        await sendConnectFrame(nonce || "");
+        return;
       }
 
-      emit(ev, frame.payload)
+      emit(ev, frame.payload);
     }
-  }
+  };
 
   ws.onclose = (e) => {
-    status.value = 'disconnected'
-    ws = null
-    if (e.code === 4001) { emit('auth-error', { code: e.code }); return }
-    if (shouldReconnect && retryCount < MAX_RETRIES) {
-      const delay = RETRY_DELAYS[Math.min(retryCount, RETRY_DELAYS.length - 1)]
-      emit('reconnecting', { attempt: retryCount + 1 })
-      retryTimer = setTimeout(() => connect(savedToken, savedUrl), delay)
-      retryCount++
-    } else if (retryCount >= MAX_RETRIES) {
-      emit('max-retries', {})
+    status.value = "disconnected";
+    ws = null;
+    if (e.code === 4001) {
+      emit("auth-error", { code: e.code });
+      return;
     }
-  }
+    if (shouldReconnect && retryCount < MAX_RETRIES) {
+      const delay = RETRY_DELAYS[Math.min(retryCount, RETRY_DELAYS.length - 1)];
+      emit("reconnecting", { attempt: retryCount + 1 });
+      retryTimer = setTimeout(() => connect(savedToken, savedUrl), delay);
+      retryCount++;
+    } else if (retryCount >= MAX_RETRIES) {
+      emit("max-retries", {});
+    }
+  };
 
-  ws.onerror = () => { /* onclose handles retry */ }
+  ws.onerror = () => {
+    /* onclose handles retry */
+  };
 }
 
 function disconnect() {
-  shouldReconnect = false
-  if (retryTimer) clearTimeout(retryTimer)
-  ws?.close()
+  shouldReconnect = false;
+  if (retryTimer) clearTimeout(retryTimer);
+  if (connectTimer) clearTimeout(connectTimer);
+  ws?.close();
 }
 
 /** 返回模块级单例，全局共享同一 WS 连接 */
 export function useWebSocket() {
-  return { status, send, request, on, connect, disconnect }
+  return { status, send, request, on, connect, disconnect };
 }

@@ -6,6 +6,7 @@ import type { Message, ActionPayload, Attachment } from '../stores/chat'
 import { useWebSocket } from './useWebSocket'
 
 let initialized = false
+let currentSessionKey = ''
 
 function extractAction(content: string): ActionPayload | undefined {
   const match = content.match(/```json\s*([\s\S]*?)```/)
@@ -19,6 +20,32 @@ function extractAction(content: string): ActionPayload | undefined {
 
 function stripActionJson(content: string): string {
   return content.replace(/```json[\s\S]*?```/g, '').trim()
+}
+
+function stripThinkingTags(text: string): string {
+  return text
+    .replace(/<\s*think(?:ing)?\s*>[\s\S]*?<\s*\/\s*think(?:ing)?\s*>/gi, '')
+    .trim()
+}
+
+function extractThinking(text: string): string {
+  const match = text.match(/<\s*think(?:ing)?\s*>([\s\S]*?)<\s*\/\s*think(?:ing)?\s*>/i)
+  return match ? match[1].trim() : ''
+}
+
+/** 从 OpenClaw message 对象中提取纯文本（content 可能是 string 或 block 数组） */
+function extractText(message: unknown): string {
+  if (!message || typeof message !== 'object') return ''
+  const msg = message as { content?: unknown; text?: string }
+  if (typeof msg.content === 'string') return msg.content
+  if (Array.isArray(msg.content)) {
+    return (msg.content as Array<{ type?: string; text?: string }>)
+      .filter(b => b.type === 'text')
+      .map(b => b.text || '')
+      .join('')
+  }
+  if (typeof msg.text === 'string') return msg.text
+  return ''
 }
 
 function persistMessage(msg: Message) {
@@ -42,45 +69,69 @@ export function useChat() {
     let streamingContent = ''
     let streamingThinking = ''
 
-    ws.on('thinking', (payload: unknown) => {
-      const p = payload as { text: string }
-      streamingThinking += p.text
-      if (streamingId) {
-        const msg = store.messages.find(m => m.id === streamingId)
-        if (msg) msg.thinking = streamingThinking
-      }
+    // 从 hello-ok 握手响应中获取 sessionKey
+    ws.on('connected', (payload: unknown) => {
+      const p = payload as { sessionKey?: string }
+      if (p.sessionKey) currentSessionKey = p.sessionKey
     })
 
+    // chat 事件：新格式 state = 'delta' | 'final' | 'aborted' | 'error'
     ws.on('chat', (payload: unknown) => {
-      const p = payload as { delta?: string; done?: boolean }
+      const p = payload as {
+        state?: string
+        sessionKey?: string
+        message?: unknown
+        runId?: string
+        errorMessage?: string
+      }
 
-      if (!streamingId) {
-        const msg: Message = {
-          id: crypto.randomUUID(),
-          sessionId: store.activeSessionId,
-          role: 'assistant',
-          content: '',
-          thinking: streamingThinking || undefined,
-          status: 'streaming',
-          createdAt: new Date().toISOString(),
+      // sessionKey 过滤（多 session 时只处理当前 session）
+      if (p.sessionKey && currentSessionKey && p.sessionKey !== currentSessionKey) return
+
+      if (p.state === 'delta') {
+        const rawText = extractText(p.message)
+        if (!rawText) return
+        const thinking = extractThinking(rawText)
+        const text = stripThinkingTags(rawText)
+
+        if (!streamingId) {
+          const msg: Message = {
+            id: crypto.randomUUID(),
+            sessionId: store.activeSessionId,
+            role: 'assistant',
+            content: '',
+            thinking: thinking || undefined,
+            status: 'streaming',
+            createdAt: new Date().toISOString(),
+          }
+          store.messages.push(msg)
+          streamingId = msg.id
         }
-        store.messages.push(msg)
-        streamingId = msg.id
+
+        // delta 内容是累积全文，直接替换而非追加
+        if (text.length >= streamingContent.length) {
+          streamingContent = text
+          streamingThinking = thinking
+          const msg = store.messages.find(m => m.id === streamingId)
+          if (msg) {
+            msg.content = streamingContent
+            msg.thinking = streamingThinking || undefined
+          }
+        }
+        return
       }
 
-      if (p.delta) {
-        streamingContent += p.delta
-        const msg = store.messages.find(m => m.id === streamingId)
-        if (msg) msg.content = streamingContent
-      }
+      if (p.state === 'final') {
+        const rawText = extractText(p.message) || streamingContent
+        const thinking = extractThinking(rawText) || streamingThinking
+        const text = stripThinkingTags(rawText) || streamingContent
 
-      if (p.done) {
         const msg = store.messages.find(m => m.id === streamingId)
         if (msg) {
-          const action = extractAction(streamingContent)
+          const action = extractAction(text)
           msg.actionJson = action
-          msg.content = action ? stripActionJson(streamingContent) : streamingContent
-          msg.thinking = streamingThinking || undefined
+          msg.content = action ? stripActionJson(text) : text
+          msg.thinking = thinking || undefined
           msg.status = 'done'
           persistMessage(msg)
           if (action?.autoOpen) {
@@ -92,12 +143,67 @@ export function useChat() {
         streamingId = null
         streamingContent = ''
         streamingThinking = ''
+        return
+      }
+
+      if (p.state === 'aborted' || p.state === 'error') {
+        const msg = store.messages.find(m => m.id === streamingId)
+        if (msg) {
+          msg.status = 'error'
+          if (streamingContent) msg.content = streamingContent
+          persistMessage(msg)
+        }
+        streamingId = null
+        streamingContent = ''
+        streamingThinking = ''
       }
     })
 
+    // agent 事件：新格式 stream = 'lifecycle' | 'assistant' | 'tool'
     ws.on('agent', (payload: unknown) => {
-      const p = payload as { status: string }
-      store.agentRunning = p.status === 'running'
+      const p = payload as {
+        stream?: string
+        sessionKey?: string
+        runId?: string
+        data?: { phase?: string; text?: string }
+      }
+
+      // sessionKey 过滤
+      if (p.sessionKey && currentSessionKey && p.sessionKey !== currentSessionKey) return
+
+      if (p.stream === 'lifecycle') {
+        store.agentRunning = p.data?.phase === 'start'
+      } else if (p.stream === 'assistant') {
+        // assistant stream 提供累积文本，比 chat.delta 更实时
+        const rawText = p.data?.text || ''
+        if (rawText) {
+          const thinking = extractThinking(rawText)
+          const text = stripThinkingTags(rawText)
+          if (text.length > streamingContent.length) {
+            streamingContent = text
+            streamingThinking = thinking
+            if (streamingId) {
+              const msg = store.messages.find(m => m.id === streamingId)
+              if (msg) {
+                msg.content = text
+                msg.thinking = thinking || undefined
+              }
+            } else {
+              const msg: Message = {
+                id: crypto.randomUUID(),
+                sessionId: store.activeSessionId,
+                role: 'assistant',
+                content: text,
+                thinking: thinking || undefined,
+                status: 'streaming',
+                createdAt: new Date().toISOString(),
+              }
+              store.messages.push(msg)
+              streamingId = msg.id
+            }
+          }
+        }
+      }
     })
 
     ws.on('reconnecting', () => {
@@ -151,8 +257,10 @@ export function useChat() {
     try {
       const wsAttachments = attachments.map(a => ({ name: a.name, mimeType: a.mimeType, data: a.data }))
       const res = await ws.request('chat.send', {
+        sessionKey: currentSessionKey,
         message: text,
-        channelId: project.channelId,
+        deliver: false,
+        idempotencyKey: crypto.randomUUID(),
         ...(wsAttachments.length ? { attachments: wsAttachments } : {}),
       }) as { ok: boolean }
       userMsg.status = res.ok ? 'done' : 'error'
@@ -163,18 +271,25 @@ export function useChat() {
     }
   }
 
-  async function loadHistory(channelId: string) {
+  async function loadHistory(sessionKey?: string) {
+    const key = sessionKey || currentSessionKey
+    if (!key) return
     try {
-      const res = await ws.request('chat.history', { channelId }) as {
+      const res = await ws.request('chat.history', { sessionKey: key, limit: 200 }) as {
         ok: boolean
-        payload?: { messages: Array<{ role: string; content: string; id: string; createdAt: string }> }
+        payload?: { messages: Array<{ role: string; content: unknown; id: string; createdAt: string }> }
       }
       if (!res.ok || !res.payload?.messages) return
       const sessionId = store.activeSessionId
-      const msgs: Message[] = res.payload.messages.map(m => ({
-        id: m.id, sessionId, role: m.role as 'user' | 'assistant',
-        content: m.content, status: 'done' as const, createdAt: m.createdAt,
-      }))
+      const msgs: Message[] = res.payload.messages
+        .filter(m => m.role === 'user' || m.role === 'assistant')
+        .map(m => {
+          const rawContent = extractText(m)
+          return {
+            id: m.id, sessionId, role: m.role as 'user' | 'assistant',
+            content: stripThinkingTags(rawContent), status: 'done' as const, createdAt: m.createdAt,
+          }
+        })
       store.messages = store.messages.filter(m => m.sessionId !== sessionId).concat(msgs)
     } catch { /* ignore */ }
   }
