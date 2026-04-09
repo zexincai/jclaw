@@ -14,6 +14,11 @@ export interface Session {
   createdAt: string;
 }
 
+export interface PlatformAction {
+  label: string
+  payload: unknown
+}
+
 export interface ActionPayload {
   action: "open_modal";
   modal: string;
@@ -35,6 +40,7 @@ export interface Message {
   content: string;
   thinking?: string;
   actionJson?: ActionPayload;
+  platformAction?: PlatformAction;
   attachments?: Attachment[];
   status: "sending" | "streaming" | "done" | "error";
   createdAt: string;

@@ -64,6 +64,14 @@ function onCancelled(handler: CancelledHandler) {
   return () => cancelledHandlers.delete(handler)
 }
 
+function dispatchAction(payload: unknown) {
+  attachListener()
+  iframeRef.value?.contentWindow?.postMessage(
+    { type: 'JCLAW_ACTION', payload },
+    ORIGIN || '*'
+  )
+}
+
 export function useIframeBridge() {
-  return { iframeRef, isVisible, openModal, closePanel, navigate, onSaved, onCancelled }
+  return { iframeRef, isVisible, openModal, closePanel, navigate, onSaved, onCancelled, dispatchAction }
 }

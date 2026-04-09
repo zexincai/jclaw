@@ -6,7 +6,7 @@
     <template v-if="store.usage">
       <span title="输入 token">↑{{ fmt(store.usage.inputTokens) }}</span>
       <span title="输出 token">↓{{ fmt(store.usage.outputTokens) }}</span>
-      <span title="累计费用">${{ store.usage.totalCostUsd.toFixed(3) }}</span>
+      <span title="累计费用">${{ (store.usage.totalCostUsd ?? 0).toFixed(3) }}</span>
       <span
         :class="store.usage.contextUsedPct > 80 ? 'text-orange-500 font-semibold' : ''"
         title="context 窗口使用率"

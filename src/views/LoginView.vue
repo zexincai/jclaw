@@ -34,22 +34,6 @@
 
           <!-- 分隔线 -->
           <div class="divider" />
-
-          <!-- 数据展示 -->
-          <div class="flex gap-10">
-            <div class="stat">
-              <span class="stat-num">2,800<sup>+</sup></span>
-              <span class="stat-label">项目在管</span>
-            </div>
-            <div class="stat">
-              <span class="stat-num">98.6<sup>%</sup></span>
-              <span class="stat-label">数据准确率</span>
-            </div>
-            <div class="stat">
-              <span class="stat-num">&lt;500<sup>ms</sup></span>
-              <span class="stat-label">实时响应</span>
-            </div>
-          </div>
         </div>
 
         <!-- 底部 -->
@@ -80,24 +64,13 @@
         <form @submit.prevent="handleLogin" class="space-y-7">
           <div class="field">
             <label>用户名</label>
-            <input
-              v-model="username"
-              type="text"
-              autocomplete="username"
-              placeholder="请输入用户名"
-              :disabled="loading"
-            />
+            <input v-model="username" type="text" autocomplete="username" placeholder="请输入用户名" :disabled="loading" />
           </div>
 
           <div class="field">
             <label>密码</label>
-            <input
-              v-model="password"
-              type="password"
-              autocomplete="current-password"
-              placeholder="请输入密码"
-              :disabled="loading"
-            />
+            <input v-model="password" type="password" autocomplete="current-password" placeholder="请输入密码"
+              :disabled="loading" />
           </div>
 
           <!-- 错误 -->
@@ -107,11 +80,7 @@
 
           <!-- 提交 -->
           <div class="pt-1">
-            <button
-              type="submit"
-              :disabled="loading || !username || !password"
-              class="submit-btn"
-            >
+            <button type="submit" :disabled="loading || !username || !password" class="submit-btn">
               <span v-if="!loading">进入系统</span>
               <span v-else class="flex items-center justify-center gap-2.5">
                 <svg class="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
@@ -206,7 +175,7 @@ async function handleLogin() {
   inset: 0;
   pointer-events: none;
   opacity: 0.15;
-  background-image: radial-gradient(circle, rgba(255,255,255,0.35) 1px, transparent 1px);
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.35) 1px, transparent 1px);
   background-size: 32px 32px;
 }
 
@@ -219,8 +188,9 @@ async function handleLogin() {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 0 1px rgba(185,28,28,0.5), 0 4px 16px rgba(185,28,28,0.3);
+  box-shadow: 0 0 0 1px rgba(185, 28, 28, 0.5), 0 4px 16px rgba(185, 28, 28, 0.3);
 }
+
 .logo-mark span {
   color: white;
   font-weight: 700;
@@ -238,20 +208,21 @@ async function handleLogin() {
 
 .brand-heading {
   font-family: Georgia, 'Songti SC', STSong, serif;
-  font-size: 52px;
+  font-size: 66px;
   font-weight: 300;
   line-height: 1.15;
   letter-spacing: -0.02em;
   color: #f0ebe3;
   margin-bottom: 20px;
 }
+
 .brand-heading em {
   font-style: normal;
   color: #ef4444;
 }
 
 .brand-sub {
-  font-size: 13px;
+  font-size: 22px;
   line-height: 1.8;
   color: rgba(240, 235, 227, 0.45);
   margin-bottom: 32px;
@@ -260,11 +231,16 @@ async function handleLogin() {
 .divider {
   width: 48px;
   height: 1px;
-  background: linear-gradient(to right, rgba(185,28,28,0.8), transparent);
+  background: linear-gradient(to right, rgba(185, 28, 28, 0.8), transparent);
   margin-bottom: 32px;
 }
 
-.stat { display: flex; flex-direction: column; gap: 4px; }
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .stat-num {
   font-family: 'Courier New', Courier, monospace;
   font-size: 22px;
@@ -272,10 +248,16 @@ async function handleLogin() {
   color: #f0ebe3;
   letter-spacing: -0.03em;
 }
-.stat-num sup { font-size: 11px; opacity: 0.6; vertical-align: super; }
+
+.stat-num sup {
+  font-size: 11px;
+  opacity: 0.6;
+  vertical-align: super;
+}
+
 .stat-label {
   font-size: 11px;
-  color: rgba(240,235,227,0.35);
+  color: rgba(240, 235, 227, 0.35);
   letter-spacing: 0.05em;
 }
 
@@ -295,7 +277,7 @@ async function handleLogin() {
 
 .form-heading {
   font-family: Georgia, 'Songti SC', STSong, serif;
-  font-size: 32px;
+  font-size: 40px;
   font-weight: 300;
   letter-spacing: -0.02em;
   color: #1c1813;
@@ -303,7 +285,7 @@ async function handleLogin() {
 }
 
 .form-sub {
-  font-size: 13px;
+  font-size: 18px;
   color: #9a8f82;
 }
 
@@ -316,7 +298,7 @@ async function handleLogin() {
 
 .field label {
   font-family: 'Courier New', Courier, monospace;
-  font-size: 10px;
+  font-size: 20px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: #9a8f82;
@@ -328,15 +310,24 @@ async function handleLogin() {
   background: transparent;
   border: none;
   border-bottom: 1px solid #c8bfaf;
-  font-size: 14px;
+  font-size: 18px;
   color: #1c1813;
   outline: none;
   transition: border-color 0.2s;
   font-family: inherit;
 }
-.field input::placeholder { color: #c2b8ac; }
-.field input:focus { border-bottom-color: #b91c1c; }
-.field input:disabled { opacity: 0.5; }
+
+.field input::placeholder {
+  color: #c2b8ac;
+}
+
+.field input:focus {
+  border-bottom-color: #b91c1c;
+}
+
+.field input:disabled {
+  opacity: 0.5;
+}
 
 /* ── 错误提示 ── */
 .error-bar {
@@ -367,12 +358,15 @@ async function handleLogin() {
   align-items: center;
   justify-content: center;
 }
+
 .submit-btn:not(:disabled):hover {
   background: #b91c1c;
 }
+
 .submit-btn:not(:disabled):active {
   transform: scale(0.99);
 }
+
 .submit-btn:disabled {
   opacity: 0.3;
   cursor: not-allowed;

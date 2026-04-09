@@ -21,7 +21,7 @@
       </div>
       <!-- 文字气泡 -->
       <div v-if="message.content" class="px-4 py-2.5 bg-pink-100 rounded-2xl rounded-tr-sm text-sm text-gray-800">
-        {{ message.content }}
+        <MarkdownContent :content="message.content" />
       </div>
       <div v-if="message.status === 'error'" class="flex items-center gap-1 text-xs text-red-500">
         <AlertCircle :size="10" /> 发送失败
@@ -46,18 +46,23 @@
     <div class="flex flex-col min-w-0">
       <span class="text-xs text-gray-400 mb-1">{{ projectName }}</span>
       <div class="px-4 py-3 bg-white border border-gray-100 rounded-2xl rounded-tl-sm shadow-sm">
-        <ThinkingBlock v-if="message.thinking" :content="message.thinking" />
-        <div class="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
-          {{ message.content }}
-          <span
-            v-if="message.status === 'streaming'"
-            class="inline-block w-0.5 h-4 bg-gray-400 animate-pulse ml-0.5 align-middle"
-          />
-        </div>
+        <ThinkingBlock
+          v-if="message.thinking"
+          :content="message.thinking"
+          :streaming="message.status === 'streaming'"
+        />
+        <MarkdownContent
+          :content="message.content || ''"
+          :streaming="message.status === 'streaming'"
+        />
         <ActionCard
           v-if="message.actionJson && !message.actionJson.autoOpen"
           :modal="message.actionJson.modal"
           @trigger="emit('open-modal', message.actionJson!)"
+        />
+        <ActionTagButton
+          v-if="message.platformAction"
+          :action="message.platformAction"
         />
       </div>
     </div>
@@ -71,6 +76,8 @@ import type { Message, ActionPayload } from '../../stores/chat'
 import { useChatStore } from '../../stores/chat'
 import ThinkingBlock from './ThinkingBlock.vue'
 import ActionCard from './ActionCard.vue'
+import ActionTagButton from './ActionTagButton.vue'
+import MarkdownContent from './MarkdownContent.vue'
 
 const BG_COLORS = [
   'bg-teal-500',

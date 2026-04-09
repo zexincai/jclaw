@@ -2,13 +2,16 @@
  * 模块级单例 — 与 useWebSocket 共享同一事件注册，避免重复监听
  */
 import { useChatStore } from '../stores/chat'
-import type { Message, ActionPayload, Attachment } from '../stores/chat'
+import type { Message, ActionPayload, Attachment, PlatformAction } from '../stores/chat'
 import { useWebSocket } from './useWebSocket'
 import { useAuth } from './useAuth'
 import { useIframeBridge } from './useIframeBridge'
 
 let initialized = false
 let currentSessionKey = ''
+let streamingId: string | null = null
+let streamingContent = ''
+let streamingThinking = ''
 
 interface IframeNavigateAction {
   isSkip: boolean
@@ -54,6 +57,64 @@ function extractThinking(text: string): string {
   return match ? match[1].trim() : ''
 }
 
+/** Vite 构建时加载 src/skills/*.md 原始内容 */
+const skillModules = import.meta.glob('../skills/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const SKILLS_CONTENT = Object.values(skillModules).join('\n\n---\n\n')
+
+/** 将 roleToken + systemPrompt + skills 拼接为 <system> 内容块，前缀在消息体最前面。
+ *  AI（Claude）对 <system> 标签有原生理解，会将其内容作为系统级指令处理。 */
+function buildMessageWithCtx(text: string, token?: string, prompt?: string): string {
+  if (!token && !prompt) return text
+  const lines = [
+    prompt || '',
+    token ? `用户令牌：${token}` : '',
+    SKILLS_CONTENT ? `\n<skills>\n${SKILLS_CONTENT}\n</skills>` : '',
+  ].filter(Boolean).join('\n')
+  return `<system>\n${lines}\n</system>\n\n${text}`
+}
+
+/** 平台检测 */
+function detectPlatform(): 'pc' | 'app' | 'desk' {
+  if (typeof window !== 'undefined' && (window as unknown as Record<string, unknown>).__ELECTRON__) return 'desk'
+  if (typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent)) return 'app'
+  return 'pc'
+}
+
+/** 提取当前平台的 action 标签，格式：<pcAction>{"label":"查看",...}</pcAction> */
+function extractPlatformAction(content: string): PlatformAction | undefined {
+  const tagMap = { pc: 'pcAction', app: 'appAction', desk: 'deskAction' }
+  const tag = tagMap[detectPlatform()]
+  const re = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, 'i')
+  const match = content.match(re)
+  if (!match) return undefined
+  try {
+    const parsed = JSON.parse(match[1].trim())
+    if (parsed.label) return { label: parsed.label, payload: parsed }
+  } catch { /* ignore */ }
+  return undefined
+}
+
+/** 剥离所有平台 action 标签 */
+function stripAllActionTags(content: string): string {
+  return content
+    .replace(/<pcAction>[\s\S]*?<\/pcAction>/gi, '')
+    .replace(/<appAction>[\s\S]*?<\/appAction>/gi, '')
+    .replace(/<deskAction>[\s\S]*?<\/deskAction>/gi, '')
+    .trim()
+}
+
+/** 剥离所有隐藏标签及平台 action 标签，用于历史消息清洗 */
+function stripHiddenTags(content: string): string {
+  return content
+    .replace(/<system\s*>[\s\S]*?<\/system\s*>\s*/gi, '')   // <system> 块
+    .replace(/<jclaw-ctx[^>]*>[\s\S]*?<\/jclaw-ctx>\s*/gi, '') // 旧格式兼容
+    .replace(/<jclaw-ctx[^/]*\/>\s*/gi, '')                    // 自闭合旧格式
+    .replace(/<pcAction>[\s\S]*?<\/pcAction>/gi, '')
+    .replace(/<appAction>[\s\S]*?<\/appAction>/gi, '')
+    .replace(/<deskAction>[\s\S]*?<\/deskAction>/gi, '')
+    .trim()
+}
+
 /** 从 OpenClaw message 对象中提取纯文本（content 可能是 string 或 block 数组） */
 function extractText(message: unknown): string {
   if (!message || typeof message !== 'object') return ''
@@ -87,9 +148,6 @@ export function useChat() {
   if (!initialized) {
     initialized = true
     const bridge = useIframeBridge()
-    let streamingId: string | null = null
-    let streamingContent = ''
-    let streamingThinking = ''
 
     // 从 hello-ok 握手响应中获取 sessionKey
     ws.on('connected', (payload: unknown) => {
@@ -107,8 +165,15 @@ export function useChat() {
         errorMessage?: string
       }
 
-      // sessionKey 过滤（多 session 时只处理当前 session）
-      if (p.sessionKey && currentSessionKey && p.sessionKey !== currentSessionKey) return
+      // sessionKey 过滤（兼容 "ch_001" 与 "agent:main:ch_001" 两种格式）
+      if (p.sessionKey && currentSessionKey) {
+        const match = p.sessionKey === currentSessionKey
+          || p.sessionKey.endsWith(':' + currentSessionKey)
+          || currentSessionKey.endsWith(':' + p.sessionKey)
+        if (!match) return
+        // 同步为服务端返回的完整 key，后续严格匹配
+        currentSessionKey = p.sessionKey
+      }
 
       if (p.state === 'delta') {
         const rawText = extractText(p.message)
@@ -150,34 +215,42 @@ export function useChat() {
 
         const msg = store.messages.find(m => m.id === streamingId)
         if (msg) {
-          // 优先检测 iframe 跳转指令
-          const iframeAction = extractIframeAction(text)
-          if (iframeAction) {
-            // 无论 isSkip 值如何，JSON 块都不显示在聊天窗口
-            msg.content = stripActionJson(text)
+          // 1. 平台 Action 标签（<pcAction> / <appAction> / <deskAction>）
+          const platformAction = extractPlatformAction(text)
+          if (platformAction) {
+            msg.content = stripAllActionTags(text)
             msg.thinking = thinking || undefined
+            msg.platformAction = platformAction
             msg.status = 'done'
             persistMessage(msg)
-            // isSkip=true 时触发 iframe 跳转
-            if (iframeAction.isSkip) {
-              bridge.navigate({
-                menuPath: iframeAction.menuPath,
-                menuButtonCode: iframeAction.menuButtonCode,
-                operateType: iframeAction.operateType,
-              })
-            }
           } else {
-            // 原有的 open_modal 指令处理
-            const action = extractAction(text)
-            msg.actionJson = action
-            msg.content = action ? stripActionJson(text) : text
-            msg.thinking = thinking || undefined
-            msg.status = 'done'
-            persistMessage(msg)
-            if (action?.autoOpen) {
-              window.dispatchEvent(new CustomEvent('jclaw:open-modal', {
-                detail: { modal: action.modal, data: action.data }
-              }))
+            // 2. iframe 跳转指令
+            const iframeAction = extractIframeAction(text)
+            if (iframeAction) {
+              msg.content = stripActionJson(text)
+              msg.thinking = thinking || undefined
+              msg.status = 'done'
+              persistMessage(msg)
+              if (iframeAction.isSkip) {
+                bridge.navigate({
+                  menuPath: iframeAction.menuPath,
+                  menuButtonCode: iframeAction.menuButtonCode,
+                  operateType: iframeAction.operateType,
+                })
+              }
+            } else {
+              // 3. open_modal 指令
+              const action = extractAction(text)
+              msg.actionJson = action
+              msg.content = action ? stripActionJson(text) : text
+              msg.thinking = thinking || undefined
+              msg.status = 'done'
+              persistMessage(msg)
+              if (action?.autoOpen) {
+                window.dispatchEvent(new CustomEvent('jclaw:open-modal', {
+                  detail: { modal: action.modal, data: action.data }
+                }))
+              }
             }
           }
         }
@@ -209,8 +282,13 @@ export function useChat() {
         data?: { phase?: string; text?: string }
       }
 
-      // sessionKey 过滤
-      if (p.sessionKey && currentSessionKey && p.sessionKey !== currentSessionKey) return
+      // sessionKey 过滤（兼容短格式/长格式）
+      if (p.sessionKey && currentSessionKey) {
+        const match = p.sessionKey === currentSessionKey
+          || p.sessionKey.endsWith(':' + currentSessionKey)
+          || currentSessionKey.endsWith(':' + p.sessionKey)
+        if (!match) return
+      }
 
       if (p.stream === 'lifecycle') {
         store.agentRunning = p.data?.phase === 'start'
@@ -290,6 +368,21 @@ export function useChat() {
     store.messages.push(userMsg)
     persistMessage(userMsg)
 
+    // 立即创建占位 AI 消息，让"思考中"动画马上出现
+    const placeholder: Message = {
+      id: crypto.randomUUID(),
+      sessionId: store.activeSessionId,
+      role: 'assistant',
+      content: '',
+      thinking: ' ', // 非空以触发 ThinkingBlock 流式动画
+      status: 'streaming',
+      createdAt: new Date().toISOString(),
+    }
+    store.messages.push(placeholder)
+    streamingId = placeholder.id
+    streamingContent = ''
+    streamingThinking = ''
+
     const session = store.sessions.find(s => s.id === store.activeSessionId)
     if (session?.title === '新对话' && text) {
       session.title = text.slice(0, 20)
@@ -298,13 +391,17 @@ export function useChat() {
     try {
       const auth = useAuth()
       const roleToken = auth.currentRole.value?.token
+      const systemPrompt = auth.currentRole.value?.systemPrompt
+      const messageWithCtx = buildMessageWithCtx(text, roleToken, systemPrompt)
       const wsAttachments = attachments.map(a => ({ name: a.name, mimeType: a.mimeType, data: a.data }))
+      // 同步 currentSessionKey，确保 chat 事件过滤器能接受服务端响应
+      const chatSessionKey = project.channelId || currentSessionKey
+      currentSessionKey = chatSessionKey
       const res = await ws.request('chat.send', {
-        sessionKey: project.channelId || currentSessionKey,
-        message: text,
+        sessionKey: chatSessionKey,
+        message: messageWithCtx,
         deliver: false,
         idempotencyKey: crypto.randomUUID(),
-        ...(roleToken ? { roleToken } : {}),
         ...(wsAttachments.length ? { attachments: wsAttachments } : {}),
       }) as { ok: boolean }
       userMsg.status = res.ok ? 'done' : 'error'
@@ -312,6 +409,11 @@ export function useChat() {
     } catch {
       userMsg.status = 'error'
       persistMessage(userMsg)
+      // 移除无效占位消息
+      store.messages = store.messages.filter(m => m.id !== streamingId)
+      streamingId = null
+      streamingContent = ''
+      streamingThinking = ''
     }
   }
 
@@ -329,9 +431,10 @@ export function useChat() {
         .filter(m => m.role === 'user' || m.role === 'assistant')
         .map(m => {
           const rawContent = extractText(m)
+          const cleaned = stripHiddenTags(stripThinkingTags(rawContent))
           return {
             id: m.id, sessionId, role: m.role as 'user' | 'assistant',
-            content: stripThinkingTags(rawContent), status: 'done' as const, createdAt: m.createdAt,
+            content: cleaned, status: 'done' as const, createdAt: m.createdAt,
           }
         })
       store.messages = store.messages.filter(m => m.sessionId !== sessionId).concat(msgs)

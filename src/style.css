@@ -6,3 +6,21 @@ html, body { height: 100%; margin: 0; }
 * { box-sizing: border-box; }
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* prose 表格边框 */
+.prose table { border-collapse: collapse; width: 100%; }
+.prose th, .prose td { border: 1px solid #e5e7eb; padding: 5px 12px; }
+.prose th { background-color: #f9fafb; font-weight: 600; text-align: left; }
+.prose tr:nth-child(even) td { background-color: #fafafa; }
+
+/* AI 消息流式输出光标 */
+.streaming-cursor::after {
+  content: '▌';
+  display: inline;
+  color: #9ca3af;
+  animation: blink 1s step-end infinite;
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
