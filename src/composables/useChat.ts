@@ -4,9 +4,18 @@
 import { useChatStore } from '../stores/chat'
 import type { Message, ActionPayload, Attachment } from '../stores/chat'
 import { useWebSocket } from './useWebSocket'
+import { useAuth } from './useAuth'
+import { useIframeBridge } from './useIframeBridge'
 
 let initialized = false
 let currentSessionKey = ''
+
+interface IframeNavigateAction {
+  isSkip: boolean
+  operateType: number
+  menuPath: string
+  menuButtonCode: string
+}
 
 function extractAction(content: string): ActionPayload | undefined {
   const match = content.match(/```json\s*([\s\S]*?)```/)
@@ -14,6 +23,18 @@ function extractAction(content: string): ActionPayload | undefined {
   try {
     const parsed = JSON.parse(match[1])
     if (parsed.action === 'open_modal') return parsed as ActionPayload
+  } catch { /* ignore */ }
+  return undefined
+}
+
+function extractIframeAction(content: string): IframeNavigateAction | undefined {
+  const match = content.match(/```json\s*([\s\S]*?)```/)
+  if (!match) return undefined
+  try {
+    const parsed = JSON.parse(match[1])
+    if (typeof parsed.isSkip === 'boolean' && parsed.menuPath) {
+      return parsed as IframeNavigateAction
+    }
   } catch { /* ignore */ }
   return undefined
 }
@@ -65,6 +86,7 @@ export function useChat() {
   // 只注册一次全局事件监听
   if (!initialized) {
     initialized = true
+    const bridge = useIframeBridge()
     let streamingId: string | null = null
     let streamingContent = ''
     let streamingThinking = ''
@@ -128,16 +150,35 @@ export function useChat() {
 
         const msg = store.messages.find(m => m.id === streamingId)
         if (msg) {
-          const action = extractAction(text)
-          msg.actionJson = action
-          msg.content = action ? stripActionJson(text) : text
-          msg.thinking = thinking || undefined
-          msg.status = 'done'
-          persistMessage(msg)
-          if (action?.autoOpen) {
-            window.dispatchEvent(new CustomEvent('jclaw:open-modal', {
-              detail: { modal: action.modal, data: action.data }
-            }))
+          // 优先检测 iframe 跳转指令
+          const iframeAction = extractIframeAction(text)
+          if (iframeAction) {
+            // 无论 isSkip 值如何，JSON 块都不显示在聊天窗口
+            msg.content = stripActionJson(text)
+            msg.thinking = thinking || undefined
+            msg.status = 'done'
+            persistMessage(msg)
+            // isSkip=true 时触发 iframe 跳转
+            if (iframeAction.isSkip) {
+              bridge.navigate({
+                menuPath: iframeAction.menuPath,
+                menuButtonCode: iframeAction.menuButtonCode,
+                operateType: iframeAction.operateType,
+              })
+            }
+          } else {
+            // 原有的 open_modal 指令处理
+            const action = extractAction(text)
+            msg.actionJson = action
+            msg.content = action ? stripActionJson(text) : text
+            msg.thinking = thinking || undefined
+            msg.status = 'done'
+            persistMessage(msg)
+            if (action?.autoOpen) {
+              window.dispatchEvent(new CustomEvent('jclaw:open-modal', {
+                detail: { modal: action.modal, data: action.data }
+              }))
+            }
           }
         }
         streamingId = null
@@ -255,12 +296,15 @@ export function useChat() {
     }
 
     try {
+      const auth = useAuth()
+      const roleToken = auth.currentRole.value?.token
       const wsAttachments = attachments.map(a => ({ name: a.name, mimeType: a.mimeType, data: a.data }))
       const res = await ws.request('chat.send', {
-        sessionKey: currentSessionKey,
+        sessionKey: project.channelId || currentSessionKey,
         message: text,
         deliver: false,
         idempotencyKey: crypto.randomUUID(),
+        ...(roleToken ? { roleToken } : {}),
         ...(wsAttachments.length ? { attachments: wsAttachments } : {}),
       }) as { ok: boolean }
       userMsg.status = res.ok ? 'done' : 'error'
@@ -291,6 +335,13 @@ export function useChat() {
           }
         })
       store.messages = store.messages.filter(m => m.sessionId !== sessionId).concat(msgs)
+      if (msgs.length > 0) {
+        const lastUserMsg = [...msgs].reverse().find(m => m.role === 'user')
+        if (lastUserMsg) {
+          const session = store.sessions.find(s => s.id === sessionId)
+          if (session && session.title === '新对话') session.title = lastUserMsg.content.slice(0, 20)
+        }
+      }
     } catch { /* ignore */ }
   }
 

@@ -54,3 +54,4 @@ docs/
 # 其他
 *.min.js
 *.min.css
+example/

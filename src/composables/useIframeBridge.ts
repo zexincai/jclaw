@@ -11,6 +11,7 @@ const ORIGIN = (import.meta.env.VITE_BUSINESS_SYSTEM_ORIGIN as string | undefine
 
 // 模块级单例
 const iframeRef = ref<HTMLIFrameElement | null>(null)
+const isVisible = ref(false)
 const savedHandlers = new Set<SavedHandler>()
 const cancelledHandlers = new Set<CancelledHandler>()
 let listenerAttached = false
@@ -32,8 +33,22 @@ function attachListener() {
 
 function openModal(modal: string, data: Record<string, unknown>) {
   attachListener()
+  isVisible.value = true
   iframeRef.value?.contentWindow?.postMessage(
     { type: 'JCLAW_OPEN_MODAL', modal, data },
+    ORIGIN || '*'
+  )
+}
+
+function closePanel() {
+  isVisible.value = false
+}
+
+function navigate(params: { menuPath: string; menuButtonCode: string; operateType: number }) {
+  attachListener()
+  isVisible.value = true
+  iframeRef.value?.contentWindow?.postMessage(
+    { type: 'JCLAW_NAVIGATE', ...params },
     ORIGIN || '*'
   )
 }
@@ -50,5 +65,5 @@ function onCancelled(handler: CancelledHandler) {
 }
 
 export function useIframeBridge() {
-  return { iframeRef, openModal, onSaved, onCancelled }
+  return { iframeRef, isVisible, openModal, closePanel, navigate, onSaved, onCancelled }
 }

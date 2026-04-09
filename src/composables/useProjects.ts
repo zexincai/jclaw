@@ -1,11 +1,18 @@
 import { computed } from 'vue'
 import { useChatStore } from '../stores/chat'
 import type { Project } from '../stores/chat'
+import { useAuth } from './useAuth'
 
 const STORAGE_KEY = 'jclaw_projects'
 
 function defaultProjects(): Project[] {
-  return [{ id: 'all', name: '全部', channelId: 'default' }]
+  return [
+    { id: 'role-sales', name: '销售助手', channelId: 'agent:sales:main' },
+    { id: 'role-service', name: '客服专员', channelId: 'agent:service:main' },
+    { id: 'role-analyst', name: '数据分析', channelId: 'agent:analyst:main' },
+    { id: 'role-hr', name: '招聘专员', channelId: 'agent:hr:main' },
+    { id: 'role-finance', name: '财务助手', channelId: 'agent:finance:main' },
+  ]
 }
 
 function load(): Project[] {
@@ -23,8 +30,23 @@ export function useProjects() {
   const store = useChatStore()
 
   function init() {
-    store.projects = load()
-    if (!store.activeProjectId) {
+    const { roles, isLoggedIn } = useAuth()
+    // 登录后优先使用接口返回的角色列表
+    if (isLoggedIn.value && roles.value.length) {
+      store.projects = roles.value.map(r => ({
+        id: r.roleId,
+        name: r.roleName,
+        channelId: r.channelId,
+      }))
+      if (!store.activeProjectId || !store.projects.find(p => p.id === store.activeProjectId)) {
+        store.activeProjectId = store.projects[0]?.id ?? ''
+      }
+      return
+    }
+    const stored = load()
+    const isOldDefault = stored.length === 1 && stored[0].id === 'all'
+    store.projects = isOldDefault ? defaultProjects() : stored
+    if (!store.activeProjectId || isOldDefault) {
       store.activeProjectId = store.projects[0]?.id ?? ''
     }
   }
