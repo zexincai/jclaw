@@ -213,6 +213,13 @@ export function useChat() {
         const thinking = extractThinking(rawText) || streamingThinking
         const text = stripThinkingTags(rawText) || streamingContent
 
+        // 内容为空说明占位消息没有被填充（内容由其他流完成），直接移除
+        if (!text) {
+          store.messages = store.messages.filter(m => m.id !== streamingId)
+          streamingId = null; streamingContent = ''; streamingThinking = ''
+          return
+        }
+
         const msg = store.messages.find(m => m.id === streamingId)
         if (msg) {
           // 1. 平台 Action 标签（<pcAction> / <appAction> / <deskAction>）
@@ -431,10 +438,12 @@ export function useChat() {
         .filter(m => m.role === 'user' || m.role === 'assistant')
         .map(m => {
           const rawContent = extractText(m)
+          const platformAction = m.role === 'assistant' ? extractPlatformAction(rawContent) : undefined
           const cleaned = stripHiddenTags(stripThinkingTags(rawContent))
           return {
             id: m.id, sessionId, role: m.role as 'user' | 'assistant',
             content: cleaned, status: 'done' as const, createdAt: m.createdAt,
+            ...(platformAction ? { platformAction } : {}),
           }
         })
       store.messages = store.messages.filter(m => m.sessionId !== sessionId).concat(msgs)

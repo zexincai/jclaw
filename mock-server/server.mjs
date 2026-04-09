@@ -7,7 +7,11 @@
  */
 
 import { createServer } from 'http'
+import { readFileSync } from 'fs'
+import { join, dirname } from 'path'
+import { fileURLToPath } from 'url'
 
+const __dir = dirname(fileURLToPath(import.meta.url))
 const PORT = 3001
 const VALID_TOKENS = ['mock_token_pm', 'mock_token_cost', 'mock_token_admin']
 
@@ -87,6 +91,18 @@ const server = createServer((req, res) => {
 
   const token = parseToken(req)
   const urlPath = req.url.split('?')[0]
+
+  // ── GET / → iframe 测试页 ─────────────────────────────
+  if (req.method === 'GET' && (urlPath === '/' || urlPath === '/iframe-test.html')) {
+    try {
+      const html = readFileSync(join(__dir, 'iframe-test.html'), 'utf8')
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Access-Control-Allow-Origin': '*' })
+      res.end(html)
+    } catch {
+      res.writeHead(404); res.end('not found')
+    }
+    return
+  }
 
   // ── 认证检查 ──────────────────────────────────────────
   if (!token || !VALID_TOKENS.includes(token)) {

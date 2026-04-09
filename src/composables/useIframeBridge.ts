@@ -66,6 +66,7 @@ function onCancelled(handler: CancelledHandler) {
 
 function dispatchAction(payload: unknown) {
   attachListener()
+  isVisible.value = true
   iframeRef.value?.contentWindow?.postMessage(
     { type: 'JCLAW_ACTION', payload },
     ORIGIN || '*'

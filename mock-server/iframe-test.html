@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <title>JClaw iframe 通信测试</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, sans-serif; }
+    body { background: #f5f5f5; padding: 16px; font-size: 14px; }
+    h2 { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: #111; }
+    .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+    .badge.recv { background: #dbeafe; color: #1d4ed8; }
+    .badge.send { background: #dcfce7; color: #166534; }
+    .log { background: #1e1e1e; color: #d4d4d4; border-radius: 6px; padding: 10px; font-family: monospace; font-size: 12px; height: 220px; overflow-y: auto; line-height: 1.6; }
+    .log .ts { color: #6a9955; }
+    .log .type { color: #4ec9b0; font-weight: bold; }
+    .log .dir-in  { color: #9cdcfe; }
+    .log .dir-out { color: #ce9178; }
+    .btn { padding: 7px 14px; border-radius: 6px; border: 1px solid; font-size: 13px; cursor: pointer; transition: opacity .15s; }
+    .btn:hover { opacity: .8; }
+    .btn-save { background: #f0fdf4; border-color: #86efac; color: #166534; }
+    .btn-cancel { background: #fff1f2; border-color: #fca5a5; color: #991b1b; }
+    .btn-nav { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    #last-payload { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px; font-family: monospace; font-size: 12px; white-space: pre-wrap; min-height: 60px; color: #374151; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>📡 收到的消息</h2>
+    <div id="last-payload">（等待父页面发送 postMessage…）</div>
+  </div>
+
+  <div class="card">
+    <h2>📤 发送消息到父页面</h2>
+    <div class="row" style="margin-bottom:8px">
+      <button class="btn btn-save" onclick="sendSaved()">✅ JCLAW_MODAL_SAVED</button>
+      <button class="btn btn-cancel" onclick="sendCancelled()">❌ JCLAW_MODAL_CANCELLED</button>
+      <button class="btn btn-nav" onclick="sendCustom()">💬 自定义消息</button>
+    </div>
+    <p style="color:#6b7280;font-size:12px">点击后观察父页面是否响应</p>
+  </div>
+
+  <div class="card">
+    <h2>📋 通信日志</h2>
+    <div class="log" id="log"></div>
+  </div>
+
+  <script>
+    const logEl = document.getElementById('log')
+    const payloadEl = document.getElementById('last-payload')
+
+    function addLog(dir, type, data) {
+      const ts = new Date().toLocaleTimeString()
+      const arrow = dir === 'in' ? '←' : '→'
+      const dirClass = dir === 'in' ? 'dir-in' : 'dir-out'
+      const line = document.createElement('div')
+      line.innerHTML = `<span class="ts">[${ts}]</span> <span class="${dirClass}">${arrow}</span> <span class="type">${type}</span> ${JSON.stringify(data)}`
+      logEl.appendChild(line)
+      logEl.scrollTop = logEl.scrollHeight
+    }
+
+    // 接收父页面消息
+    window.addEventListener('message', (e) => {
+      const d = e.data
+      if (!d?.type) return
+      addLog('in', d.type, d)
+      payloadEl.textContent = JSON.stringify(d, null, 2)
+    })
+
+    // 发送保存事件
+    function sendSaved() {
+      const payload = {
+        type: 'JCLAW_MODAL_SAVED',
+        modal: 'test-modal',
+        record: { id: 'rec_001', title: '测试记录', createdAt: new Date().toISOString() }
+      }
+      window.parent.postMessage(payload, '*')
+      addLog('out', 'JCLAW_MODAL_SAVED', payload)
+    }
+
+    // 发送取消事件
+    function sendCancelled() {
+      const payload = { type: 'JCLAW_MODAL_CANCELLED', modal: 'test-modal' }
+      window.parent.postMessage(payload, '*')
+      addLog('out', 'JCLAW_MODAL_CANCELLED', payload)
+    }
+
+    // 发送自定义消息
+    function sendCustom() {
+      const payload = { type: 'JCLAW_CUSTOM', message: '来自 iframe 的测试消息', ts: Date.now() }
+      window.parent.postMessage(payload, '*')
+      addLog('out', 'JCLAW_CUSTOM', payload)
+    }
+  </script>
+</body>
+</html>
