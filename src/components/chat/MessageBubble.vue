@@ -90,7 +90,7 @@ const BG_COLORS = [
   'bg-cyan-500',
 ]
 
-const props = defineProps<{ message: Message }>()
+defineProps<{ message: Message }>()
 const emit = defineEmits<{ retry: []; 'open-modal': [action: ActionPayload] }>()
 
 const store = useChatStore()

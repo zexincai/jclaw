@@ -1,15 +1,5 @@
 <template>
-  <div class="flex flex-col h-full bg-gray-50">
-    <!-- 关闭按钮 -->
-    <div class="flex items-center justify-end h-10 px-3 bg-white border-b border-gray-200 shrink-0">
-      <button
-        @click="bridge.closePanel()"
-        class="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
-        title="关闭"
-      >
-        <X :size="14" />
-      </button>
-    </div>
+  <div class="flex flex-col h-full">
     <iframe
       :ref="(el) => { bridge.iframeRef.value = el as HTMLIFrameElement | null }"
       :src="businessUrl"
@@ -21,13 +11,14 @@
 
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
-import { X } from 'lucide-vue-next'
 import { useIframeBridge } from '../../composables/useIframeBridge'
 import { useChatStore } from '../../stores/chat'
 
 const bridge = useIframeBridge()
 const store = useChatStore()
-const businessUrl = (import.meta.env.VITE_BUSINESS_SYSTEM_ORIGIN as string | undefined) ?? ''
+const businessUrl = (import.meta.env.VITE_IFRAME_URL as string | undefined)
+  || (import.meta.env.VITE_BUSINESS_SYSTEM_ORIGIN as string | undefined)
+  || ''
 
 function onAutoOpen(e: Event) {
   const { modal, data } = (e as CustomEvent<{ modal: string; data: Record<string, unknown> }>).detail

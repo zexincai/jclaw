@@ -50,7 +50,7 @@ export interface UsageStats {
   inputTokens: number;
   outputTokens: number;
   totalCostUsd: number;
-  contextUsedPct: number;
+  totalMessages: number;
   lastUpdated: string;
 }
 

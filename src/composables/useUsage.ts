@@ -15,10 +15,20 @@ export function useUsage() {
     try {
       const res = await ws.request('sessions.usage', {}) as {
         ok: boolean
-        payload?: { inputTokens: number; outputTokens: number; totalCostUsd: number; contextUsedPct: number }
+        payload?: {
+          totals?: { input: number; output: number; totalCost: number }
+          aggregates?: { messages?: { total: number } }
+        }
       }
-      if (res.ok && res.payload) {
-        store.usage = { ...res.payload, lastUpdated: new Date().toISOString() }
+      if (res.ok && res.payload?.totals) {
+        const t = res.payload.totals
+        store.usage = {
+          inputTokens: t.input,
+          outputTokens: t.output,
+          totalCostUsd: t.totalCost,
+          totalMessages: res.payload.aggregates?.messages?.total ?? 0,
+          lastUpdated: new Date().toISOString(),
+        }
       }
     } catch { /* ignore */ }
     finally { loading.value = false }
@@ -29,11 +39,12 @@ export function useUsage() {
 
     ws.on('heartbeat', (payload: unknown) => {
       const p = payload as Record<string, unknown>
-      if (typeof p?.inputTokens === 'number' && store.usage) {
+      const input = p?.input ?? p?.inputTokens
+      if (typeof input === 'number' && store.usage) {
         store.usage = {
           ...store.usage,
-          inputTokens: p.inputTokens as number,
-          outputTokens: (p.outputTokens as number) ?? store.usage.outputTokens,
+          inputTokens: input,
+          outputTokens: (p?.output ?? p?.outputTokens ?? store.usage.outputTokens) as number,
           lastUpdated: new Date().toISOString(),
         }
       }

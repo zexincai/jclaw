@@ -9,38 +9,44 @@
         </div>
         <span class="text-sm font-semibold text-gray-700">JClaw</span>
       </div>
-      <button
-        @click="chat.newSession()"
+      <button @click="chat.newSession()"
         class="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
-        title="新对话"
-      >
+        title="新对话">
         <Plus :size="14" />
       </button>
       <div class="flex-1" />
       <!-- WS 状态指示 -->
-      <div
-        :class="[
-          'w-2 h-2 rounded-full shrink-0 transition-colors',
-          store.wsStatus === 'connected' ? 'bg-green-500' :
+      <div :class="[
+        'w-2 h-2 rounded-full shrink-0 transition-colors',
+        store.wsStatus === 'connected' ? 'bg-green-500' :
           store.wsStatus === 'connecting' ? 'bg-yellow-400 animate-pulse' : 'bg-gray-300'
-        ]"
-        :title="store.wsStatus === 'connected' ? '已连接' : store.wsStatus === 'connecting' ? '连接中' : '未连接'"
-      />
+      ]" :title="store.wsStatus === 'connected' ? '已连接' : store.wsStatus === 'connecting' ? '连接中' : '未连接'" />
     </div>
 
     <!-- 主内容区：项目栏 + 会话面板 + 聊天 + iframe -->
     <div class="flex flex-1 overflow-hidden min-h-0">
       <ProjectSwitcher />
-      <SidePanel class="w-56 shrink-0" />
-      <ChatArea class="flex-1 min-w-0 border-r border-gray-200" />
-      <BusinessPanel v-show="bridge.isVisible.value" class="w-[420px] shrink-0" />
+      <SidePanel v-show="sidePanelOpen" class="w-56 shrink-0" />
+      <button @click="sidePanelOpen = !sidePanelOpen"
+        class="w-4 shrink-0 flex items-center justify-center bg-white border-r border-gray-200 hover:bg-gray-50 text-gray-300 hover:text-gray-500 transition-colors"
+        :title="sidePanelOpen ? '收起侧栏' : '展开侧栏'">
+        <ChevronsLeft v-if="sidePanelOpen" :size="12" />
+        <ChevronsRight v-else :size="12" />
+      </button>
+      <ChatArea class="flex-1 min-w-0" />
+      <button v-if="bridge.isVisible.value" @click="bridge.closePanel()"
+        class="w-4 shrink-0 flex items-center justify-center bg-white border-l border-gray-200 hover:bg-gray-50 text-gray-300 hover:text-gray-500 transition-colors"
+        title="收起面板">
+        <ChevronsRight :size="12" />
+      </button>
+      <BusinessPanel v-show="bridge.isVisible.value" class="w-[860px] shrink-0" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { watch, onMounted } from 'vue'
-import { Plus } from 'lucide-vue-next'
+import { ref, watch, onMounted } from 'vue'
+import { Plus, ChevronsLeft, ChevronsRight } from 'lucide-vue-next'
 import ProjectSwitcher from './components/layout/ProjectSwitcher.vue'
 import SidePanel from './components/layout/SidePanel.vue'
 import ChatArea from './components/layout/ChatArea.vue'
@@ -61,6 +67,15 @@ const { init } = useProjects()
 const chat = useChat()
 const bridge = useIframeBridge()
 const auth = useAuth()
+
+const sidePanelOpen = ref(true)
+watch(bridge.isVisible, v => {
+  if (v) {
+    sidePanelOpen.value = false
+  } else {
+    sidePanelOpen.value = true
+  }
+})
 
 watch(ws.status, s => {
   store.wsStatus = s

@@ -31,24 +31,29 @@ function attachListener() {
   })
 }
 
+function plain<T>(v: T): T {
+  return JSON.parse(JSON.stringify(v))
+}
+
 function openModal(modal: string, data: Record<string, unknown>) {
   attachListener()
   isVisible.value = true
   iframeRef.value?.contentWindow?.postMessage(
-    { type: 'JCLAW_OPEN_MODAL', modal, data },
+    plain({ type: 'JCLAW_OPEN_MODAL', modal, data }),
     ORIGIN || '*'
   )
 }
 
 function closePanel() {
   isVisible.value = false
+  // 如果左边的收起状态 则展开
 }
 
 function navigate(params: { menuPath: string; menuButtonCode: string; operateType: number }) {
   attachListener()
   isVisible.value = true
   iframeRef.value?.contentWindow?.postMessage(
-    { type: 'JCLAW_NAVIGATE', ...params },
+    plain({ type: 'JCLAW_NAVIGATE', ...params }),
     ORIGIN || '*'
   )
 }
@@ -68,7 +73,7 @@ function dispatchAction(payload: unknown) {
   attachListener()
   isVisible.value = true
   iframeRef.value?.contentWindow?.postMessage(
-    { type: 'JCLAW_ACTION', payload },
+    plain({ type: 'JCLAW_ACTION', payload }),
     ORIGIN || '*'
   )
 }
