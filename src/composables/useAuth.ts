@@ -1,4 +1,5 @@
 import { ref, computed } from 'vue'
+import { mobileLoginApi } from '../api/login'
 
 export interface Role {
   roleId: string
@@ -100,5 +101,15 @@ export function useAuth() {
     localStorage.removeItem(STORAGE_KEY)
   }
 
-  return { isLoggedIn, roles, currentRole, login, setRole, logout }
+  async function loginByMobile(phoneNumber: string, code: string, uuid: string) {
+    const data = (await mobileLoginApi({ phoneNumber, code, uuid })) as any
+    const list: Role[] = data.roles ?? []
+    if (!list.length) throw new Error('未获取到角色信息')
+    roles.value = list
+    currentRoleId.value = list[0].roleId
+    isLoggedIn.value = true
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ roles: list, currentRoleId: list[0].roleId }))
+  }
+
+  return { isLoggedIn, roles, currentRole, login, loginByMobile, setRole, logout }
 }
