@@ -58,8 +58,8 @@ function extractThinking(text: string): string {
 }
 
 /** Vite 构建时加载 src/skills/*.md 原始内容 */
-const skillModules = import.meta.glob('../skills/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
-const SKILLS_CONTENT = Object.values(skillModules).join('\n\n---\n\n')
+// const skillModules = import.meta.glob('../skills/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+// const SKILLS_CONTENT = Object.values(skillModules).join('\n\n---\n\n')
 
 /** 将 roleToken + systemPrompt + skills 拼接为 <system> 内容块，前缀在消息体最前面。
  *  AI（Claude）对 <system> 标签有原生理解，会将其内容作为系统级指令处理。 */
@@ -68,7 +68,7 @@ function buildMessageWithCtx(text: string, token?: string, prompt?: string): str
   const lines = [
     prompt || '',
     token ? `用户令牌：${token}` : '',
-    SKILLS_CONTENT ? `\n<skills>\n${SKILLS_CONTENT}\n</skills>` : '',
+    // SKILLS_CONTENT ? `\n<skills>\n${SKILLS_CONTENT}\n</skills>` : '',
   ].filter(Boolean).join('\n')
   return `<system>\n${lines}\n</system>\n\n${text}`
 }
@@ -419,8 +419,8 @@ export function useChat() {
 
     try {
       const auth = useAuth()
-      const roleToken = auth.currentRole.value?.token
-      const systemPrompt = auth.currentRole.value?.systemPrompt
+      const roleToken = auth.token.value
+      const systemPrompt = auth.currentRole.value?.userRolePrompt
       const messageWithCtx = buildMessageWithCtx(text, roleToken, systemPrompt)
       const wsAttachments = attachments.map(a => ({ name: a.name, mimeType: a.mimeType, data: a.data }))
       // 同步 currentSessionKey，确保 chat 事件过滤器能接受服务端响应

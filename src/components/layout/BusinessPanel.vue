@@ -5,20 +5,37 @@
       :src="businessUrl"
       class="flex-1 w-full border-0"
       sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+      @load="onIframeLoad"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, watch } from 'vue'
 import { useIframeBridge } from '../../composables/useIframeBridge'
 import { useChatStore } from '../../stores/chat'
+import { useAuth } from '../../composables/useAuth'
 
 const bridge = useIframeBridge()
 const store = useChatStore()
+const auth = useAuth()
 const businessUrl = (import.meta.env.VITE_IFRAME_URL as string | undefined)
   || (import.meta.env.VITE_BUSINESS_SYSTEM_ORIGIN as string | undefined)
   || ''
+
+// 当 token 发生变化时，如果 iframe 已加载，则同步同步过去
+watch(auth.token, (newToken) => {
+  if (newToken) {
+    bridge.sendToken(newToken)
+  }
+}, { immediate: true })
+
+// iframe 加载完成后的回调：确保 token 已送达
+function onIframeLoad() {
+  if (auth.token.value) {
+    bridge.sendToken(auth.token.value)
+  }
+}
 
 function onAutoOpen(e: Event) {
   const { modal, data } = (e as CustomEvent<{ modal: string; data: Record<string, unknown> }>).detail

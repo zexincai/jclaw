@@ -4,9 +4,7 @@
     <!-- 标题栏 -->
     <div class="flex items-center h-10 bg-white border-b border-gray-200 px-3 gap-2 shrink-0">
       <div class="flex items-center gap-1.5">
-        <div class="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center">
-          <span class="text-white text-xs font-bold">J</span>
-        </div>
+        <img :src="logoUrl" class="w-8 h-8 rounded-full object-cover" />
         <span class="text-sm font-semibold text-gray-700">JClaw</span>
       </div>
       <button @click="chat.newSession()"
@@ -81,6 +79,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
+import logoUrl from './assets/logo.jpg'
 import { Plus, ChevronsLeft, ChevronsRight, Link2 } from 'lucide-vue-next'
 import ProjectSwitcher from './components/layout/ProjectSwitcher.vue'
 import SidePanel from './components/layout/SidePanel.vue'
@@ -152,10 +151,10 @@ function goToPairing() {
 function connectWS() {
   if (store.wsStatus !== 'disconnected') return
   init()
-  const token = import.meta.env.VITE_OPENCLAW_TOKEN || auth.currentRole.value?.token
+  const wsToken = import.meta.env.VITE_OPENCLAW_TOKEN || auth.token.value
   const url = import.meta.env.VITE_OPENCLAW_WS_URL ?? 'ws://127.0.0.1:18789'
-  if (token) {
-    ws.connect(token, url)
+  if (wsToken) {
+    ws.connect(wsToken, url)
   }
 }
 

@@ -1,4 +1,6 @@
-const BASE_URL = 'https://cos.jianbiyou.com/gateway'
+import { getDeviceId } from './device'
+
+const BASE_URL = 'http://192.168.2.99:9199'
 
 // 统一响应结构
 export interface ApiResponse<T = unknown> {
@@ -28,9 +30,13 @@ async function request<T>(url: string, options: RequestOptions = {}): Promise<Ap
   }
 
   try {
+    const token = localStorage.getItem('jclaw_token')
+    const clientId = await getDeviceId()
     const res = await fetch(`${BASE_URL}${finalUrl}`, {
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': token || '',
+        'clientid': clientId,
         ...fetchOptions.headers,
       },
       ...fetchOptions,

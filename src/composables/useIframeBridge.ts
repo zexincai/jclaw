@@ -79,6 +79,14 @@ function dispatchAction(payload: unknown) {
   )
 }
 
+function sendToken(token: string) {
+  if (!token) return
+  iframeRef.value?.contentWindow?.postMessage(
+    plain({ type: 'JCLAW_SET_TOKEN', token }),
+    ORIGIN || '*'
+  )
+}
+
 export function useIframeBridge() {
-  return { iframeRef, isVisible, openModal, closePanel, navigate, onSaved, onCancelled, dispatchAction }
+  return { iframeRef, isVisible, openModal, closePanel, navigate, onSaved, onCancelled, dispatchAction, sendToken }
 }

@@ -36,12 +36,11 @@
 
   <!-- AI 消息：左对齐白色卡片 + 角色头像 -->
   <div v-else class="flex items-start gap-2 mb-4 max-w-[85%]">
-    <!-- 角色头像 -->
     <div
-      :class="['w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5', avatarColor]"
+      class="w-7 h-7 rounded-full overflow-hidden shrink-0 mt-0.5 border border-gray-100 shadow-sm"
       :title="projectName"
     >
-      {{ roleInitial }}
+      <img :src="logoUrl" class="w-full h-full object-cover" />
     </div>
     <div class="flex flex-col min-w-0">
       <span class="text-xs text-gray-400 mb-1">{{ projectName }}</span>
@@ -78,26 +77,11 @@ import ThinkingBlock from './ThinkingBlock.vue'
 import ActionCard from './ActionCard.vue'
 import ActionTagButton from './ActionTagButton.vue'
 import MarkdownContent from './MarkdownContent.vue'
-
-const BG_COLORS = [
-  'bg-teal-500',
-  'bg-slate-400',
-  'bg-indigo-400',
-  'bg-amber-400',
-  'bg-rose-400',
-  'bg-emerald-500',
-  'bg-violet-400',
-  'bg-cyan-500',
-]
+import logoUrl from '../../assets/logo.jpg'
 
 defineProps<{ message: Message }>()
 const emit = defineEmits<{ retry: []; 'open-modal': [action: ActionPayload] }>()
 
 const store = useChatStore()
 const projectName = computed(() => store.activeProject()?.name ?? '')
-const roleInitial = computed(() => store.activeProject()?.name.slice(0, 1).toUpperCase() ?? 'A')
-const avatarColor = computed(() => {
-  const idx = store.projects.findIndex(p => p.id === store.activeProjectId)
-  return BG_COLORS[Math.max(0, idx) % BG_COLORS.length]
-})
 </script>

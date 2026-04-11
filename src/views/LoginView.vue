@@ -12,11 +12,8 @@
 
       <!-- 品牌内容 -->
       <div class="relative z-10 flex flex-col h-full px-16 py-14">
-        <!-- Logo -->
         <div class="flex items-center gap-3">
-          <div class="logo-mark">
-            <span>J</span>
-          </div>
+          <img :src="logoUrl" class="w-10 h-10 rounded-xl object-cover shadow-lg shadow-red-900/20 shadow-red-500/20" />
           <span class="font-mono text-[11px] tracking-[0.3em] uppercase text-white/80">JClaw</span>
         </div>
 
@@ -49,7 +46,7 @@
 
         <!-- 移动端 Logo -->
         <div class="flex items-center gap-2.5 mb-12 lg:hidden">
-          <div class="logo-mark"><span>J</span></div>
+          <img :src="logoUrl" class="w-9 h-9 rounded-lg object-cover" />
           <span class="font-mono text-[11px] tracking-[0.3em] uppercase" style="color: #c8bfaf;">JClaw</span>
         </div>
 
@@ -113,6 +110,7 @@
 
 <script setup lang="ts">
 import { ref, onUnmounted } from 'vue'
+import logoUrl from '../assets/logo.jpg'
 import { useAuth } from '../composables/useAuth'
 import { getCaptchaApi, sendSmsCodeApi } from '../api/login'
 import SliderCaptcha from '../components/SliderCaptcha.vue'
@@ -155,8 +153,8 @@ async function handleGetCode() {
 async function onCaptchaSuccess(distance: number) {
   try {
     globalLoading.show('Verifying')
-    const uuid = await sendSmsCodeApi(phoneNumber.value, captchaData.value.uuid, distance)
-    smsUuid.value = uuid
+    const data = await sendSmsCodeApi(phoneNumber.value, captchaData.value.uuid, distance)
+    smsUuid.value = data?.data
     captchaVisible.value = false
     startCountdown()
   } catch (e: any) {

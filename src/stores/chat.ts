@@ -5,6 +5,8 @@ export interface Project {
   id: string;
   name: string;
   channelId: string;
+  avatar?: string;
+  orgType?: number;
 }
 
 export interface Session {

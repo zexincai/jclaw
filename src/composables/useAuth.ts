@@ -1,44 +1,44 @@
 import { ref, computed } from 'vue'
-import { mobileLoginApi } from '../api/login'
-
+import { aiSysLoginPc } from '../api/auth'
 export interface Role {
-  roleId: string
-  roleName: string
-  token: string
-  channelId: string
-  systemPrompt?: string
+  userId: string
+  loginName: string
+  telephone: string
+  isMaster: number
+  pastStatus: number
+  orgType: number
+  orgTypeName: string
+  orgName: string
+  avatar?: string
+  userRolePrompt?: string
+  authStatusVo?: {
+    mobile: string
+    checkStatus: number
+  }
 }
 
-const STORAGE_KEY = 'jclaw_auth'
+const AUTH_STORAGE_KEY = 'jclaw_auth'
+const TOKEN_STORAGE_KEY = 'jclaw_token'
 
 // 模块级单例
 const roles = ref<Role[]>([])
 const currentRoleId = ref<string>('')
+const token = ref<string>('')
 const isLoggedIn = ref(false)
 
-// mock 模式下各角色的 systemPrompt 补全表（兼容旧缓存）
-const MOCK_PROMPTS: Record<string, string> = {
-  role_pm:    '你是建筑工程行业高级项目经理，精通项目进度管控、成本管理与质量安全管理。用专业、简洁的语言回答问题，不需要说明自己的身份。',
-  role_cost:  '你是建筑工程行业成本主管，擅长工程量清单、合同管理与造价分析。用专业、简洁的语言回答问题，不需要说明自己的身份。',
-  role_admin: '你是建筑工程信息化系统管理员，负责系统配置与用户权限管理。',
-}
+// mock 模式下各角色的 systemPrompt 补全表（不活跃）
 
 function restore() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return
-    const data: { roles: Role[]; currentRoleId: string } = JSON.parse(raw)
+    const rawAuth = localStorage.getItem(AUTH_STORAGE_KEY)
+    token.value = localStorage.getItem(TOKEN_STORAGE_KEY) || ''
+    
+    if (!rawAuth) return
+    const data: { roles: Role[]; currentRoleId: string } = JSON.parse(rawAuth)
     if (data.roles?.length) {
-      // mock 模式下自动补全旧缓存中缺失的 systemPrompt
-      if (import.meta.env.VITE_MOCK_LOGIN === 'true') {
-        data.roles = data.roles.map(r => ({
-          ...r,
-          systemPrompt: r.systemPrompt ?? MOCK_PROMPTS[r.roleId],
-        }))
-      }
       roles.value = data.roles
-      currentRoleId.value = data.currentRoleId || data.roles[0].roleId
-      isLoggedIn.value = true
+      currentRoleId.value = data.currentRoleId || data.roles[0].userId
+      isLoggedIn.value = !!token.value
     }
   } catch { /* ignore */ }
 }
@@ -47,7 +47,7 @@ restore()
 
 export function useAuth() {
   const currentRole = computed(() =>
-    roles.value.find(r => r.roleId === currentRoleId.value) ?? null
+    roles.value.find(r => r.userId === currentRoleId.value) ?? null
   )
 
   async function login(username: string, password: string) {
@@ -57,15 +57,18 @@ export function useAuth() {
       if (username !== 'admin' || password !== '123456') {
         throw new Error('用户名或密码错误（mock: admin / 123456）')
       }
-      const list: Role[] = [
-        { roleId: 'role_pm',    roleName: '项目经理',   token: 'mock_token_pm',    channelId: 'ch_001', systemPrompt: '你是建筑工程行业高级项目经理，精通项目进度管控、成本管理与质量安全管理。用专业、简洁的语言回答问题，不需要说明自己的身份。' },
-        { roleId: 'role_cost',  roleName: '成本主管',   token: 'mock_token_cost',  channelId: 'ch_002', systemPrompt: '你是建筑工程行业成本主管，擅长工程量清单、合同管理与造价分析。用专业、简洁的语言回答问题，不需要说明自己的身份。' },
-        { roleId: 'role_admin', roleName: '系统管理员', token: 'mock_token_admin', channelId: 'ch_003', systemPrompt: '你是建筑工程信息化系统管理员，负责系统配置与用户权限管理。' },
+      const userList: Role[] = [
+        { userId: 'role_pm', loginName: '项目经理', telephone: '18000000001', isMaster: 1, pastStatus: 1, orgType: 1, orgTypeName: '项目部', orgName: '演示项目部', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix', userRolePrompt: '你是建筑工程行业高级项目经理，精通项目进度管控、成本管理与质量安全管理。用专业、简洁的语言回答问题，不需要说明自己的身份。' },
+        { userId: 'role_cost', loginName: '成本主管', telephone: '18000000002', isMaster: 0, pastStatus: 1, orgType: 1, orgTypeName: '项目部', orgName: '演示项目部', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Aneka', userRolePrompt: '你是建筑工程行业成本主管，擅长工程量清单、合同管理与造价分析。用专业、简洁的语言回答问题，不需要说明自己的身份。' },
+        { userId: 'role_admin', loginName: '系统管理员', telephone: '18000000003', isMaster: 1, pastStatus: 1, orgType: 1, orgTypeName: '运营单位', orgName: '建网科技', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Admin', userRolePrompt: '你是建筑工程信息化系统管理员，负责系统配置与用户权限管理。' },
       ]
-      roles.value = list
-      currentRoleId.value = list[0].roleId
+      const accessToken = 'mock_access_token'
+      roles.value = userList
+      currentRoleId.value = userList[0].userId
+      token.value = accessToken
       isLoggedIn.value = true
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ roles: list, currentRoleId: list[0].roleId }))
+      localStorage.setItem(TOKEN_STORAGE_KEY, accessToken)
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ roles: userList, currentRoleId: userList[0].userId }))
       return
     }
     // ─────────────────────────────────────────────────────────────
@@ -78,38 +81,60 @@ export function useAuth() {
     })
     if (!res.ok) throw new Error(`登录失败 (${res.status})`)
     const json = await res.json()
-    // 兼容 { code, data: { roles } } 和 { roles } 两种格式
+    // 兼容 { code, data: { access_token, userList } } 和 { access_token, userList } 两种格式
     const data = json.data ?? json
-    const list: Role[] = data.roles ?? []
-    if (!list.length) throw new Error('未获取到角色信息')
-    roles.value = list
-    currentRoleId.value = list[0].roleId
+    const accessToken = data.access_token
+    const userList: Role[] = data.userList ?? []
+    
+    if (!accessToken) throw new Error('未获取到登录令牌')
+    if (!userList.length) throw new Error('未获取到账户信息')
+
+    token.value = accessToken
+    roles.value = userList
+    currentRoleId.value = userList[0].userId
     isLoggedIn.value = true
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ roles: list, currentRoleId: list[0].roleId }))
+
+    localStorage.setItem(TOKEN_STORAGE_KEY, accessToken)
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ roles: userList, currentRoleId: userList[0].userId }))
   }
 
   function setRole(roleId: string) {
     currentRoleId.value = roleId
     const stored = { roles: roles.value, currentRoleId: roleId }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(stored))
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(stored))
   }
 
   function logout() {
     roles.value = []
     currentRoleId.value = ''
+    token.value = ''
     isLoggedIn.value = false
-    localStorage.removeItem(STORAGE_KEY)
+    localStorage.removeItem(AUTH_STORAGE_KEY)
+    localStorage.removeItem(TOKEN_STORAGE_KEY)
+    localStorage.removeItem('jclaw_last_phone')
   }
 
   async function loginByMobile(phoneNumber: string, code: string, uuid: string) {
-    const data = (await mobileLoginApi({ phoneNumber, code, uuid })) as any
-    const list: Role[] = data.roles ?? []
-    if (!list.length) throw new Error('未获取到角色信息')
-    roles.value = list
-    currentRoleId.value = list[0].roleId
+    // 立即设置上一次手机号，以便请求拦截器能生成正确的 deterministic deviceId
+    localStorage.setItem('jclaw_last_phone', phoneNumber)
+    
+    const res = (await aiSysLoginPc({ phoneNumber, code, forceType: 1, uuid, sourceType: 3, operateSource: 2 })) as any
+    const data = res.data ?? res
+    const accessToken = data.access_token
+    const userList: Role[] = data.userList ?? []
+
+    if (!accessToken) throw new Error('未获取到登录令牌')
+    if (!userList.length) throw new Error('未获取到账户信息')
+
+    token.value = accessToken
+    roles.value = userList
+    currentRoleId.value = userList[0].userId
     isLoggedIn.value = true
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ roles: list, currentRoleId: list[0].roleId }))
+
+    localStorage.setItem(TOKEN_STORAGE_KEY, accessToken)
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ roles: userList, currentRoleId: userList[0].userId }))
+    localStorage.setItem('jclaw_last_phone', phoneNumber)
   }
 
-  return { isLoggedIn, roles, currentRole, login, loginByMobile, setRole, logout }
+  return { isLoggedIn, roles, currentRole, token, login, loginByMobile, setRole, logout }
 }

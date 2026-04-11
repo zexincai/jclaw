@@ -1,18 +1,27 @@
 <template>
-  <div class="flex flex-col items-center w-14 bg-white border-r border-gray-200 py-3 shrink-0 gap-1.5">
-    <button
-      v-for="(project, idx) in store.projects"
-      :key="project.id"
-      @click="handleSwitch(project.id)"
-      :title="project.name"
-      :class="[
-        'w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold transition-all duration-150',
-        store.activeProjectId === project.id
-          ? 'text-white shadow-sm'
-          : 'text-white hover:opacity-90',
-        BG_COLORS[idx % BG_COLORS.length]
-      ]"
-    >{{ initial(project.name) }}</button>
+  <div
+    class="flex flex-col items-center w-[72px] bg-white border-r border-gray-100 pt-6 pb-4 shrink-0 h-full overflow-hidden">
+    <div class="flex-1 w-full overflow-y-auto overflow-x-hidden scrollbar-none flex flex-col items-center gap-4">
+      <div v-for="(project, idx) in store.projects" :key="project.id"
+        class="relative flex items-center justify-center w-full px-2">
+        <!-- 活动指示条 -->
+        <div v-if="store.activeProjectId === project.id"
+          class="absolute left-0 w-1.5 h-8 bg-red-500 rounded-r-full transition-all duration-300" />
+
+        <button @click="handleSwitch(project.id)" :title="project.name" :class="[
+          'w-12 h-12 rounded-[18px] flex items-center justify-center text-sm font-bold transition-all duration-200 hover:rounded-[14px] overflow-hidden border',
+          store.activeProjectId === project.id
+            ? 'text-white shadow-lg shadow-black/10 scale-105 ring-2 ring-red-500 ring-offset-2 border-transparent'
+            : 'text-white opacity-90 hover:opacity-100 hover:scale-105 border-blue-100',
+          !getAvatarByOrgType(project.orgType) && !project.avatar ? BG_COLORS[idx % BG_COLORS.length] : 'bg-white'
+        ]">
+          <img v-if="getAvatarByOrgType(project.orgType)" :src="getAvatarByOrgType(project.orgType)!"
+            class="w-full h-full object-cover" />
+          <img v-else-if="project.avatar" :src="project.avatar" class="w-full h-full object-cover" />
+          <span v-else>{{ initial(project.name) }}</span>
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -21,16 +30,17 @@ import { useChatStore } from '../../stores/chat'
 import { useProjects } from '../../composables/useProjects'
 import { useChat } from '../../composables/useChat'
 import { useAuth } from '../../composables/useAuth'
+import { getAvatarByOrgType } from '../../utils/avatar'
 
 const BG_COLORS = [
   'bg-teal-500',
-  'bg-slate-400',
-  'bg-indigo-400',
-  'bg-amber-400',
-  'bg-rose-400',
+  'bg-slate-500',
+  'bg-indigo-500',
+  'bg-amber-500',
+  'bg-rose-500',
   'bg-emerald-500',
-  'bg-violet-400',
-  'bg-cyan-500',
+  'bg-violet-500',
+  'bg-cyan-600',
 ]
 
 const store = useChatStore()
@@ -51,3 +61,14 @@ async function handleSwitch(projectId: string) {
   if (project) await chat.loadHistory(project.channelId)
 }
 </script>
+
+<style scoped>
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+</style>

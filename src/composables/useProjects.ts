@@ -34,9 +34,12 @@ export function useProjects() {
     // 登录后优先使用接口返回的角色列表
     if (isLoggedIn.value && roles.value.length) {
       store.projects = roles.value.map(r => ({
-        id: r.roleId,
-        name: r.roleName,
-        channelId: r.channelId,
+        id: r.userId,
+        name: r.orgName,
+        avatar: r.avatar,
+        orgType: r.orgType,
+        // 如果 API 不再提供 channelId，使用基于 userId 的默认值
+        channelId: `agent:${r.userId}:main`,
       }))
       if (!store.activeProjectId || !store.projects.find(p => p.id === store.activeProjectId)) {
         store.activeProjectId = store.projects[0]?.id ?? ''
