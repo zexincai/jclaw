@@ -1,76 +1,216 @@
 <template>
+  <!-- Category tabs -->
   <div class="flex items-center gap-2 px-4 py-2 overflow-x-auto scrollbar-hide border-b border-gray-50">
-    <div v-for="a in QUICK_ACTIONS" :key="a.id" class="relative shrink-0">
+    <div v-for="tab in TABS" :key="tab.type" class="relative shrink-0" :ref="el => setTabRef(tab.type, el)">
       <button
-        :ref="el => setButtonRef(a.id, el)"
-        @click="toggle(a)"
-        class="flex items-center gap-1 px-3 py-1 text-xs text-gray-500 border border-gray-200 rounded-full hover:bg-gray-50 transition-colors whitespace-nowrap"
-        :class="{ 'bg-gray-50': openId === a.id }"
+        @click="togglePopup(tab.type)"
+        class="flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded-full transition-colors whitespace-nowrap"
+        :class="openType === tab.type
+          ? 'bg-blue-50 border-blue-200 text-blue-600'
+          : 'border-gray-200 text-gray-500 hover:bg-gray-50'"
       >
-        {{ a.label }}
+        <component :is="tab.icon" :size="12" />
+        {{ tab.label }}
         <ChevronRight :size="10" />
       </button>
     </div>
   </div>
 
+  <!-- Popup -->
   <Teleport to="body">
-    <template v-for="a in QUICK_ACTIONS" :key="a.id">
-      <div
-        v-if="a.messageList && openId === a.id && popupPos"
-        :style="{ position: 'fixed', top: popupPos.top + 'px', left: popupPos.left + 'px', zIndex: 9999 }"
-        class="bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-max"
-      >
-        <button
-          v-for="sub in a.messageList"
-          :key="sub.id + sub.label"
-          @click="selectSub(sub.message!)"
-          class="block w-full text-left px-4 py-2 text-xs text-gray-600 hover:bg-gray-50 whitespace-nowrap"
+    <div
+      v-if="openType && popupPos"
+      :style="{ position: 'fixed', bottom: popupPos.bottom + 'px', left: popupPos.left + 'px', zIndex: 9999 }"
+      class="bg-white border border-gray-200 rounded-2xl shadow-xl py-2 min-w-[160px]"
+    >
+      <div v-if="loading" class="px-4 py-3 text-xs text-gray-400 text-center">加载中...</div>
+      <template v-else>
+        <div
+          v-for="item in items"
+          :key="item.pkId"
+          class="flex items-center gap-2 px-4 py-2 hover:bg-gray-50 transition-colors group cursor-pointer"
+          @click="selectItem(item)"
         >
-          {{ sub.label }}
+          <span class="flex-1 text-xs text-blue-500 truncate">{{ item.quickTitle }}</span>
+          <button
+            @click.stop="deleteItem(item.pkId!)"
+            class="text-red-400 hover:text-red-500 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <Trash2 :size="13" />
+          </button>
+        </div>
+        <div v-if="items.length === 0" class="px-4 py-2 text-xs text-gray-300 text-center">暂无数据</div>
+        <button
+          @click="openAdd"
+          class="flex items-center gap-1 px-4 py-2 text-xs text-gray-400 hover:text-blue-500 hover:bg-gray-50 transition-colors w-full"
+        >
+          <Plus :size="12" />
+          自定义
         </button>
-      </div>
-    </template>
+      </template>
+    </div>
 
-    <div v-if="openId" class="fixed inset-0" style="z-index: 9998" @click="openId = null" />
+    <!-- 点击遮罩关闭 -->
+    <div v-if="openType" class="fixed inset-0" style="z-index: 9998" @click="closePopup" />
+  </Teleport>
+
+  <!-- Add Dialog -->
+  <Teleport to="body">
+    <div v-if="showDialog" class="fixed inset-0 bg-black/20 flex items-center justify-center z-[9999]" @click="closeDialog">
+      <div class="bg-white rounded-xl shadow-xl w-96 p-6" @click.stop>
+        <div class="mb-4 text-sm text-gray-400 text-center">
+          {{ TABS.find(t => t.type === openType)?.label }}
+        </div>
+        <div class="space-y-4">
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-gray-600 w-20 shrink-0 whitespace-nowrap">提示词标签</span>
+            <input
+              v-model="form.quickTitle"
+              class="flex-1 border border-gray-200 rounded px-3 py-1.5 text-sm outline-none focus:border-blue-300"
+            />
+          </div>
+          <div class="flex items-start gap-3">
+            <span class="text-sm text-gray-600 w-20 shrink-0 whitespace-nowrap pt-1.5">提示词内容</span>
+            <textarea
+              v-model="form.quickWords"
+              rows="4"
+              class="flex-1 border border-gray-200 rounded px-3 py-1.5 text-sm outline-none focus:border-blue-300 resize-none"
+            />
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 mt-6">
+          <button
+            @click="closeDialog"
+            class="px-4 py-1.5 text-sm text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+          >取消</button>
+          <button
+            @click="saveItem"
+            :disabled="saving || !form.quickTitle.trim() || !form.quickWords.trim()"
+            class="px-4 py-1.5 text-sm text-white bg-blue-500 rounded hover:bg-blue-600 disabled:opacity-50 transition-colors"
+          >保存</button>
+        </div>
+      </div>
+    </div>
   </Teleport>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ChevronRight } from 'lucide-vue-next'
-import { QUICK_ACTIONS, type QuickAction } from '../../config/quickActions'
+import { ChevronRight, Plus, Trash2, ListTodo, FileEdit, Search, BarChart2 } from 'lucide-vue-next'
+import {
+  getUserAccountChatQuickList,
+  addChatQuick,
+  deleteChatQuick,
+  type EngAgentChatQuickVO,
+} from '../../api/chatQuick'
 
 const emit = defineEmits<{ action: [message: string] }>()
-const openId = ref<string | null>(null)
-const popupPos = ref<{ top: number; left: number } | null>(null)
-const buttonRefs = new Map<string, HTMLElement>()
 
-function setButtonRef(id: string, el: unknown) {
-  if (el) buttonRefs.set(id, el as HTMLElement)
-  else buttonRefs.delete(id)
+const TABS = [
+  { type: '0', label: '待办事项', icon: ListTodo },
+  { type: '1', label: '录入资料', icon: FileEdit },
+  { type: '2', label: '查询记录', icon: Search },
+  { type: '3', label: '汇总数据', icon: BarChart2 },
+]
+
+const openType = ref<string | null>(null)
+const popupPos = ref<{ bottom: number; left: number } | null>(null)
+const items = ref<EngAgentChatQuickVO[]>([])
+const loading = ref(false)
+const showDialog = ref(false)
+const saving = ref(false)
+const form = ref({ quickTitle: '', quickWords: '' })
+
+const tabRefs = new Map<string, HTMLElement>()
+function setTabRef(type: string, el: unknown) {
+  if (el) tabRefs.set(type, el as HTMLElement)
+  else tabRefs.delete(type)
 }
 
-function toggle(a: QuickAction) {
-  if (a.messageList) {
-    if (openId.value === a.id) {
-      openId.value = null
-      popupPos.value = null
-    } else {
-      const btn = buttonRefs.get(a.id)
-      if (btn) {
-        const rect = btn.getBoundingClientRect()
-        popupPos.value = { top: rect.top - 40, left: rect.right + 4 }
-      }
-      openId.value = a.id
+async function togglePopup(type: string) {
+  if (openType.value === type) {
+    closePopup()
+    return
+  }
+  openType.value = type
+
+  // 计算 popup 位置（显示在 tab 上方）
+  const tabEl = tabRefs.get(type)
+  if (tabEl) {
+    const rect = tabEl.getBoundingClientRect()
+    popupPos.value = {
+      bottom: window.innerHeight - rect.top + 6,
+      left: rect.left,
     }
-  } else if (a.message) {
-    emit('action', a.message)
+  }
+
+  loading.value = true
+  items.value = []
+  try {
+    const res = await getUserAccountChatQuickList(type)
+    const data = (res as any).data
+    items.value = Array.isArray(data) ? data : (data?.data ?? [])
+  } catch {
+    items.value = []
+  } finally {
+    loading.value = false
   }
 }
 
-function selectSub(message: string) {
-  openId.value = null
+function closePopup() {
+  openType.value = null
   popupPos.value = null
-  emit('action', message)
+}
+
+function selectItem(item: EngAgentChatQuickVO) {
+  emit('action', item.quickWords || '')
+  closePopup()
+}
+
+async function deleteItem(pkId: string) {
+  try {
+    await deleteChatQuick(pkId)
+    // 刷新当前弹出列表
+    if (openType.value) {
+      const res = await getUserAccountChatQuickList(openType.value)
+      const data = (res as any).data
+      items.value = Array.isArray(data) ? data : (data?.data ?? [])
+    }
+  } catch { /* ignore */ }
+}
+
+function openAdd() {
+  showDialog.value = true
+}
+
+async function saveItem() {
+  if (!form.value.quickTitle.trim() || !form.value.quickWords.trim() || saving.value) return
+  saving.value = true
+  try {
+    await addChatQuick({
+      quickType: openType.value ?? '0',
+      quickTitle: form.value.quickTitle,
+      quickWords: form.value.quickWords,
+    })
+    closeDialog()
+    // 刷新列表
+    if (openType.value) {
+      const res = await getUserAccountChatQuickList(openType.value)
+      const data = (res as any).data
+      items.value = Array.isArray(data) ? data : (data?.data ?? [])
+    }
+  } finally {
+    saving.value = false
+  }
+}
+
+function closeDialog() {
+  showDialog.value = false
+  form.value = { quickTitle: '', quickWords: '' }
 }
 </script>
+
+<style scoped>
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+</style>

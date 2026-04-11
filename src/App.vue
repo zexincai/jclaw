@@ -122,8 +122,13 @@ ws.on('connected', async () => {
   if (store.activeSessionId) return
   const project = store.activeProject()
   if (!project) return
-  chat.newSession()
-  await chat.loadHistory(project.channelId)
+  // 先从后端加载会话列表，无会话时再新建
+  await chat.loadSessions()
+  if (!store.activeSessionId) {
+    chat.newSession()
+  } else {
+    await chat.loadSession(store.activeSessionId)
+  }
 })
 
 ws.on('auth-error', () => {

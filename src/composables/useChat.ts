@@ -2,16 +2,18 @@
  * 模块级单例 — 与 useWebSocket 共享同一事件注册，避免重复监听
  */
 import { useChatStore } from '../stores/chat'
-import type { Message, ActionPayload, Attachment, PlatformAction } from '../stores/chat'
+import type { Message, ActionPayload, Attachment, PlatformAction, Session } from '../stores/chat'
 import { useWebSocket } from './useWebSocket'
 import { useAuth } from './useAuth'
 import { useIframeBridge } from './useIframeBridge'
+import { addChat, addChatRecordData, deleteAgent, getUserAccountChatList, chatRecordDataSearchPage } from '../api/agent'
 
 let initialized = false
 let currentSessionKey = ''
 let streamingId: string | null = null
 let streamingContent = ''
 let streamingThinking = ''
+let currentChatId: number | null = null  // 当前会话的后端 fkChatId
 
 interface IframeNavigateAction {
   isSkip: boolean
@@ -273,6 +275,15 @@ export function useChat() {
             }
           }
         }
+        // 保存 AI 消息到后端
+        if (text && currentChatId) {
+          addChatRecordData({
+            fkChatId: currentChatId,
+            chatContent: text,
+            chatObject: '1',
+          }).catch(() => {})
+        }
+
         streamingId = null
         streamingContent = ''
         streamingThinking = ''
@@ -370,7 +381,7 @@ export function useChat() {
   function newSession() {
     const project = store.activeProject()
     if (!project) return
-    const session = {
+    const session: Session = {
       id: crypto.randomUUID(),
       projectId: project.id,
       title: '新对话',
@@ -415,6 +426,29 @@ export function useChat() {
     const session = store.sessions.find(s => s.id === store.activeSessionId)
     if (session?.title === '新对话' && text) {
       session.title = text.slice(0, 20)
+    }
+
+    // 确保后端会话存在（首次发消息时创建）
+    if (session && !session.backendId && text) {
+      try {
+        const res = await addChat({ chatTitle: text.slice(0, 50) })
+        const pkId = (res as any).data
+        if (pkId) session.backendId = pkId
+      } catch { /* 接口失败时继续本地发送 */ }
+    }
+    // 固定当次发送的 fkChatId，WS 事件回调直接使用，避免异步查找错误
+    currentChatId = session?.backendId ?? null
+
+    // 保存用户消息到后端（不依赖 ws.request 结果，先行记录）
+    if (currentChatId && text) {
+      addChatRecordData({
+        fkChatId: currentChatId,
+        chatContent: text,
+        chatObject: '0',
+        ...(attachments.length ? {
+          chatRecordFileList: attachments.map(a => ({ fileName: a.name, fileType: a.mimeType }))
+        } : {}),
+      }).catch(() => {})
     }
 
     try {
@@ -480,18 +514,33 @@ export function useChat() {
     } catch { /* ignore */ }
   }
 
-  function loadSession(sessionId: string) {
+  async function loadSession(sessionId: string) {
     store.activeSessionId = sessionId
-    const key = `jclaw_msgs_${sessionId}`
+    const session = store.sessions.find(s => s.id === sessionId)
+    if (!session?.backendId) return
     try {
-      const msgs: Message[] = JSON.parse(localStorage.getItem(key) ?? '[]')
-      // 恢复时过滤空消息
-      store.messages = store.messages.filter(m => m.sessionId !== sessionId)
-        .concat(msgs.filter(m => m.content.trim() !== '' || m.thinking?.trim() || m.platformAction || m.actionJson))
+      const res = await chatRecordDataSearchPage({ fkChatId: session.backendId, pageNum: 1, pageSize: 200 })
+      const data = (res as any).data
+      const records: any[] = Array.isArray(data?.records) ? data.records : (Array.isArray(data) ? data : [])
+      const msgs: Message[] = records
+        .map(r => ({
+          id: String(r.pkId),
+          sessionId,
+          role: (r.chatObject === '0' ? 'user' : 'assistant') as 'user' | 'assistant',
+          content: r.chatContent || '',
+          status: 'done' as const,
+          createdAt: r.createTime || new Date().toISOString(),
+        }))
+        .filter(m => m.content.trim())
+      store.messages = store.messages.filter(m => m.sessionId !== sessionId).concat(msgs)
     } catch { /* ignore */ }
   }
 
-  function deleteSession(sessionId: string) {
+  async function deleteSession(sessionId: string) {
+    const session = store.sessions.find(s => s.id === sessionId)
+    if (session?.backendId) {
+      try { await deleteAgent(String(session.backendId)) } catch { /* ignore */ }
+    }
     store.sessions = store.sessions.filter(s => s.id !== sessionId)
     store.messages = store.messages.filter(m => m.sessionId !== sessionId)
     localStorage.removeItem(`jclaw_msgs_${sessionId}`)
@@ -500,5 +549,27 @@ export function useChat() {
     }
   }
 
-  return { send, loadHistory, newSession, loadSession, deleteSession }
+  async function loadSessions() {
+    try {
+      const res = await getUserAccountChatList('')
+      const data = (res as any).data
+      const list = Array.isArray(data) ? data : (data?.data ?? [])
+      const project = store.activeProject()
+      const projectId = project?.id ?? ''
+      const mapped: Session[] = list.map((chat: any) => ({
+        id: String(chat.pkId),
+        projectId,
+        title: chat.chatTitle || '对话',
+        createdAt: chat.createTime || new Date().toISOString(),
+        backendId: chat.pkId,
+      }))
+      store.sessions = mapped
+      // 当前 activeSessionId 不在新会话列表中时重置（含空列表情况）
+      if (!mapped.find(s => s.id === store.activeSessionId)) {
+        store.activeSessionId = mapped[0]?.id ?? ''
+      }
+    } catch { /* ignore */ }
+  }
+
+  return { send, newSession, loadSession, deleteSession, loadSessions }
 }

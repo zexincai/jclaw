@@ -7,6 +7,8 @@ import { http } from '../utils/request'
 
 // ==================== 通用响应体 ====================
 
+
+
 /**
  * 通用响应封装
  * @description 统一响应格式
@@ -26,16 +28,46 @@ export interface AjaxResult<T = any> {
  */
 export interface PageInfo<T = any> {
   /** 当前页 */
-  pageNum: number
+  current: number
   /** 每页大小 */
-  pageSize: number
+  size: number
   /** 总记录数 */
   total: number
   /** 列表数据 */
-  list: T[]
+  records: T[]
 }
 
 // ==================== 智能体用户管理 - 请求参数接口 ====================
+
+/**
+ * 智能会话文件记录
+ * @description 会话文件信息（请求参数）
+ */
+export interface ChatRecordFile {
+  /** 文件类型 */
+  fileType?: string
+  /** 文件URL */
+  fileUrl?: string
+  /** 文件名称 */
+  fileName?: string
+}
+
+/**
+ * 新增智能体会话记录请求参数
+ * @description 新增智能体会话记录表数据
+ */
+export interface EngAgentUserChatAdd {
+  chatTitle: string
+}
+export interface EngAgentUserChatAddVo {
+  chatTitle: string
+  /** 状态码 */
+  code: number
+  /** 响应数据 */
+  data: number
+  /** 消息 */
+  msg: string
+}
 
 /**
  * 新增智能体会话记录请求参数
@@ -45,9 +77,11 @@ export interface EngAgentUserChatRecordAdd {
   /** 会话ID */
   fkChatId?: number
   /** 会话记录内容 */
-  recordContent?: string
-  /** 会话记录角色（user/assistant） */
-  recordRole?: string
+  chatContent?: string
+  /** 会话对象(用户：0, 智能体:1) */
+  chatObject?: string
+  /** 文件列表 */
+  chatRecordFileList?: ChatRecordFile[]
 }
 
 // ==================== 智能体用户管理 - 响应数据接口 ====================
@@ -56,56 +90,72 @@ export interface EngAgentUserChatRecordAdd {
  * 智能体用户信息
  * @description 智能体用户视图对象
  */
+/**
+ * 智能体用户信息
+ * @description 智能体用户视图对象
+ */
 export interface EngAgentUserVo {
-  /** 用户头像 */
-  avatar?: string
-  /** 用户ID */
-  id?: number
-  /** 昵称 */
-  nickname?: string
+  /** 证件号码 */
+  cardNum?: string
+  /** 证件类型 */
+  certType?: string
   /** 组织ID */
-  orgId?: number
+  fkOrgId?: number
   /** 组织名称 */
   orgName?: string
+  /** 组织状态 */
+  orgStatus?: number
   /** 组织类型 */
   orgType?: number
+  /** 主键ID */
+  pkId?: number
+  /** 头像URL */
+  portraitUrl?: string
+  /** 真实姓名 */
+  realName?: string
+  /** 实名认证状态 */
+  realNameVerify?: number
+  /** 性别 */
+  sex?: number
+  /** 简称 */
+  shortName?: string
   /** 手机号 */
-  phone?: string
-  /** 备注 */
-  remark?: string
-  /** 盐值 */
-  salt?: string
-  /** 用户状态 */
-  status?: number
-  /** 用户类型 */
-  userType?: number
-  /** 用户名 */
-  username?: string
+  telephone?: string
 }
 
 // ==================== 智能体会话管理 - 响应数据接口 ====================
+
+/**
+ * 智能会话文件记录 VO
+ * @description 会话文件视图对象
+ */
+export interface ChatRecordFileVO {
+  /** 文件类型 */
+  fileType?: string
+  /** 文件URL */
+  fileUrl?: string
+  /** 主键ID */
+  pkId?: number
+  /** 文件名称 */
+  fileName?: string
+}
 
 /**
  * 智能体会话记录 VO
  * @description 智能体会话记录视图对象
  */
 export interface EngAgentUserChatRecordVO {
-  /** 创建时间 */
-  createTime?: string
-  /** 创建人 */
-  createUser?: string
   /** 智能体会话ID（关联表 agent_user_chat） */
   fkChatId?: number
   /** 主键ID */
   pkId?: number
+  kChatId?: number
   /** 会话记录内容 */
-  recordContent?: string
-  /** 会话记录角色（user/assistant） */
-  recordRole?: string
-  /** 更新时间 */
-  updateTime?: string
-  /** 更新人 */
-  updateUser?: string
+  chatContent?: string
+  /** 会话对象(用户：0, 智能体:1) */
+  chatObject?: string
+  /** 文件列表 */
+  chatRecordFileList?: ChatRecordFileVO[]
 }
 
 /**
@@ -131,6 +181,16 @@ export interface EngAgentUserChatVO {
 
 // -------- 智能体会话管理 --------
 
+
+/**
+ * 新增智能体会话表数据
+ * @summary 新增会话
+ * @param params 记录参数
+ */
+export function addChat(params: EngAgentUserChatAdd) {
+  return http.post<AjaxResult<EngAgentUserChatAddVo>>('/eng/agent/add', params)
+}
+
 /**
  * 新增智能体会话记录表数据
  * @summary 新增会话记录
@@ -154,7 +214,7 @@ export function deleteAgent(pkId: string) {
  * @summary 获取会话列表
  * @param chatTitle 会话标题（可选）
  */
-export function getUserAccountChatList(chatTitle?: string) {
+export function getUserAccountChatList(chatTitle: string) {
   return http.get<AjaxResult<EngAgentUserChatVO[]>>('/eng/agent/getUserAccountChatList', { chatTitle })
 }
 

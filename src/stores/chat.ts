@@ -14,6 +14,7 @@ export interface Session {
   projectId: string;
   title: string;
   createdAt: string;
+  backendId?: number; // 后端 pkId，来自 addChat 接口
 }
 
 export interface PlatformAction {

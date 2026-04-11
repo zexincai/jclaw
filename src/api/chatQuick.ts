@@ -28,15 +28,11 @@ export interface AjaxResult<T = any> {
  */
 export interface EngAgentChatQuickAdd {
   /** 内容 */
-  content?: string
-  /** 图标 */
-  icon?: string
+  quickWords?: string
   /** 快捷类型（0：待办事项，1：录入资料，2：查询记录，3：汇总数据） */
   quickType: string
-  /** 排序 */
-  sort?: number
   /** 标题 */
-  title?: string
+  quickTitle?: string
 }
 
 /**
@@ -44,16 +40,14 @@ export interface EngAgentChatQuickAdd {
  * @description 修改智能体会话模板数据
  */
 export interface EngAgentChatQuickUpdate {
-  /** 内容 */
-  content?: string
   /** 主键ID */
   pkId?: string
+  /** 内容 */
+  quickWords?: string
   /** 快捷类型（0：待办事项，1：录入资料，2：查询记录，3：汇总数据） */
-  quickType?: string
-  /** 排序 */
-  sort?: number
+  quickType: string
   /** 标题 */
-  title?: string
+  quickTitle?: string
 }
 
 // ==================== 响应数据接口 ====================
@@ -63,26 +57,14 @@ export interface EngAgentChatQuickUpdate {
  * @description 智能体会话模板视图对象
  */
 export interface EngAgentChatQuickVO {
-  /** 内容 */
-  content?: string
-  /** 创建时间 */
-  createTime?: string
-  /** 创建人 */
-  createUser?: string
-  /** 图标 */
-  icon?: string
   /** 主键ID */
   pkId?: string
+  /** 内容 */
+  quickWords?: string
   /** 快捷类型（0：待办事项，1：录入资料，2：查询记录，3：汇总数据） */
-  quickType?: string
-  /** 排序 */
-  sort?: number
+  quickType: string
   /** 标题 */
-  title?: string
-  /** 更新时间 */
-  updateTime?: string
-  /** 更新人 */
-  updateUser?: string
+  quickTitle?: string
 }
 
 // ==================== API 接口 ====================

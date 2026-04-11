@@ -54,11 +54,18 @@ function initial(name: string) {
 
 async function handleSwitch(projectId: string) {
   if (store.activeProjectId === projectId) return
+  // 切换前清空旧用户的消息和会话状态，避免显示上个用户的聊天记录
+  store.messages = []
+  store.sessions = []
+  store.activeSessionId = ''
   setActive(projectId)
   auth.setRole(projectId)
-  chat.newSession()
-  const project = store.activeProject()
-  if (project) await chat.loadHistory(project.channelId)
+  await chat.loadSessions()
+  if (!store.activeSessionId) {
+    chat.newSession()
+  } else {
+    await chat.loadSession(store.activeSessionId)
+  }
 }
 </script>
 

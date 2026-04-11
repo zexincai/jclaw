@@ -44,10 +44,9 @@ const chat = useChat()
 
 async function handleSwitch(projectId: string) {
   setActive(projectId)
-  // 切换项目时拉取该 channel 的历史记录
-  const project = store.activeProject()
-  if (project) {
-    await chat.loadHistory(project.channelId)
+  await chat.loadSessions()
+  if (store.activeSessionId) {
+    await chat.loadSession(store.activeSessionId)
   }
 }
 </script>
