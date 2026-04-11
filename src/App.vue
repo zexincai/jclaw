@@ -41,12 +41,47 @@
       </button>
       <BusinessPanel v-show="bridge.isVisible.value" class="w-[860px] shrink-0" />
     </div>
+
+    <!-- 配对引导弹窗 -->
+    <div v-if="pairingModalVisible" class="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+      <!-- 背景遮罩 -->
+      <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="pairingModalVisible = false" />
+
+      <!-- 弹窗主体 -->
+      <div
+        class="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+        <div class="px-6 py-8 flex flex-col items-center text-center">
+          <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-6">
+            <Link2 class="text-red-500" :size="32" />
+          </div>
+
+          <h3 class="text-lg font-bold text-gray-900 mb-2">需要设备配对</h3>
+          <p class="text-sm text-gray-500 leading-relaxed mb-8">
+            当前设备尚未与 JClaw 环境成功配对。请前往管理页面完成验证，以便正常使用智能能力。
+          </p>
+
+          <div class="flex flex-col w-full gap-3">
+            <button @click="goToPairing"
+              class="w-full py-3 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl font-medium transition-all shadow-lg shadow-red-200 active:scale-[0.98]">
+              立即去配对
+            </button>
+            <button @click="pairingModalVisible = false"
+              class="w-full py-3 px-4 text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-xl transition-colors">
+              稍后再说
+            </button>
+          </div>
+        </div>
+
+        <!-- 装饰底部 -->
+        <div class="h-1.5 bg-gradient-to-r from-red-400 via-red-600 to-red-400" />
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
-import { Plus, ChevronsLeft, ChevronsRight } from 'lucide-vue-next'
+import { Plus, ChevronsLeft, ChevronsRight, Link2 } from 'lucide-vue-next'
 import ProjectSwitcher from './components/layout/ProjectSwitcher.vue'
 import SidePanel from './components/layout/SidePanel.vue'
 import ChatArea from './components/layout/ChatArea.vue'
@@ -69,6 +104,7 @@ const bridge = useIframeBridge()
 const auth = useAuth()
 
 const sidePanelOpen = ref(true)
+const pairingModalVisible = ref(false)
 watch(bridge.isVisible, v => {
   if (v) {
     sidePanelOpen.value = false
@@ -103,6 +139,15 @@ ws.on('max-retries', () => {
 ws.on('chat', (p: unknown) => {
   if ((p as { state?: string }).state === 'final') refreshUsage()
 })
+
+ws.on('not-paired', () => {
+  pairingModalVisible.value = true
+})
+
+function goToPairing() {
+  window.open('http://127.0.0.1:18789/nodes', '_blank')
+  pairingModalVisible.value = false
+}
 
 function connectWS() {
   if (store.wsStatus !== 'disconnected') return

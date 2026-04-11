@@ -20,6 +20,7 @@ function attachListener() {
   if (listenerAttached) return
   listenerAttached = true
   window.addEventListener('message', (e: MessageEvent) => {
+    console.log('hahahahah:', e.data)
     if (ORIGIN && e.origin !== ORIGIN) return
     const data = e.data as { type?: string; modal?: string; record?: unknown }
     if (!data?.type) return

@@ -223,6 +223,15 @@ function connect(token: string, url: string) {
         resolve(frame);
         pendingRequests.delete(id);
       }
+
+      // 错误处理：拦截 NOT_PAIRED 错误并发出事件
+      if (frame.ok === false) {
+        const err = frame.error as Record<string, unknown> | undefined;
+        if (err?.code === "NOT_PAIRED") {
+          emit("not-paired", err);
+        }
+      }
+
       // connect 握手响应：服务端以 res 帧返回，payload.type === 'hello-ok'
       const payload = frame.payload as Record<string, unknown> | undefined;
       if (frame.ok && payload?.type === "hello-ok") {

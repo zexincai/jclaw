@@ -1,0 +1,2287 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "建网科技工程管理系统",
+        "title": "建网科技工程管理系统接口文档",
+        "contact": {},
+        "license": {
+            "name": "Powered By 建网科技"
+        }
+    },
+    "host": "192.168.2.99:9199",
+    "basePath": "/auth",
+    "tags": [
+        {
+            "name": "外部登陆管理",
+            "description": "Sys Third Token Controller"
+        },
+        {
+            "name": "登陆管理",
+            "description": "Sys Token Controller"
+        }
+    ],
+    "paths": {
+        "/account/available": {
+            "get": {
+                "tags": [
+                    "登陆管理"
+                ],
+                "summary": "查看账号是否可用-通用版",
+                "operationId": "accountAvailableUsingGET",
+                "produces": [
+                    "*/*"
+                ],
+                "parameters": [
+                    {
+                        "name": "loginName",
+                        "in": "query",
+                        "description": "登录账号",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "originalRef": "AjaxReturn«boolean»",
+                            "$ref": "#/definitions/AjaxReturn«boolean»"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "Authorization": [
+                            "global"
+                        ]
+                    }
+                ],
+                "deprecated": false
+            }
+        },
+        "/account/effective": {
+            "get": {
+                "tags": [
+                    "登陆管理"
+                ],
+                "summary": "查看token是否有效",
+                "operationId": "accountEffectiveUsingGET",
+                "produces": [
+                    "*/*"
+                ],
+                "parameters": [
+                    {
+                        "name": "token",
+                        "in": "query",
+                        "description": "账号token",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "originalRef": "AjaxReturn«loginAccountEffectiveVo»",
+                            "$ref": "#/definitions/AjaxReturn«loginAccountEffectiveVo»"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "Authorization": [
+                            "global"
+                        ]
+                    }
+                ],
+                "deprecated": false
+            }
+        },
+        "/account/refreshToken": {
+            "get": {
+                "tags": [
+                    "登陆管理"
+                ],
+                "summary": "刷新当前账号token",
+                "operationId": "refreshTokenUsingGET",
+                "produces": [
+                    "*/*"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "Authorization": [
+                            "global"
+                        ]
+                    }
+                ],
+                "deprecated": false
+            }
+        },
+        "/ai/app/sysLogin": {
+            "post": {
+                "tags": [
+                    "登陆管理"
+                ],
+                "summary": "AI账号登陆-APP",
+                "operationId": "aiSysLoginAppUsingPOST",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "*/*"
+                ],
+                "parameters": [
+                    {
+                        "in": "body",
+                        "name": "userLogin",
+                        "description": "userLogin",
+                        "required": true,
+                        "schema": {
+                            "originalRef": "UserAILoginApp",
+                            "$ref": "#/definitions/UserAILoginApp"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "originalRef": "AjaxReturn«AuthLoginAppVo»",
+                            "$ref": "#/definitions/AjaxReturn«AuthLoginAppVo»"
+                        }
+                    },
+                    "201": {
+                        "description": "Created"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "Authorization": [
+                            "global"
+                        ]
+                    }
+                ],
+                "deprecated": false
+            }
+        },
+        "/ai/app/sysLogout": {
+            "delete": {
+                "tags": [
+                    "登陆管理"
+                ],
+                "summary": "AI退出登陆-APP",
+                "operationId": "aiLogoutAPPUsingDELETE",
+                "produces": [
+                    "*/*"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "originalRef": "AjaxReturn«object»",
+                            "$ref": "#/definitions/AjaxReturn«object»"
+                        }
+                    },
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    }
+                },
+                "security": [
+                    {
+                        "Authorization": [
+                            "global"
+                        ]
+                    }
+                ],
+                "deprecated": false
+            }
+        },
+        "/ai/sysLogin": {
+            "post": {
+                "tags": [
+                    "登陆管理"
+                ],
+                "summary": "AI账号登陆-PC",
+                "operationId": "aiLoginPCUsingPOST",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "*/*"
+                ],
+                "parameters": [
+                    {
+                        "in": "body",
+                        "name": "userLogin",
+                        "description": "userLogin",
+                        "required": true,
+                        "schema": {
+                            "originalRef": "UserAILoginPc",
+                            "$ref": "#/definitions/UserAILoginPc"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "originalRef": "AjaxReturn«AuthLoginPCVo»",
+                            "$ref": "#/definitions/AjaxReturn«AuthLoginPCVo»"
+                        }
+                    },
+                    "201": {
+                        "description": "Created"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "Authorization": [
+                            "global"
+                        ]
+                    }
+                ],
+                "deprecated": false
+            }
+        },
+        "/ai/sysLogout": {
+            "delete": {
+                "tags": [
+                    "登陆管理"
+                ],
+                "summary": "AI退出登陆-PC",
+                "operationId": "sysLogoutPCAIUsingDELETE",
+                "produces": [
+                    "*/*"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    }
+                },
+                "security": [
+                    {
+                        "Authorization": [
+                            "global"
+                        ]
+                    }
+                ],
+                "deprecated": false
+            }
+        },
+        "/app/register": {
+            "post": {
+                "tags": [
+                    "登陆管理"
+                ],
+                "summary": "账号注册-APP",
+                "operationId": "orgRegisterAppUsingPOST",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "*/*"
+                ],
+                "parameters": [
+                    {
+                        "in": "body",
+                        "name": "register",
+                        "description": "register",
+                        "required": true,
+                        "schema": {
+                            "originalRef": "orgRegisterApp",
+                            "$ref": "#/definitions/orgRegisterApp"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "originalRef": "AjaxReturn«AuthUserLoginRegisterVo»",
+                            "$ref": "#/definitions/AjaxReturn«AuthUserLoginRegisterVo»"
+                        }
+                    },
+                    "201": {
+                        "description": "Created"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "Authorization": [
+                            "global"
+                        ]
+                    }
+                ],
+                "deprecated": false
+            }
+        },
+        "/app/sysLogin": {
+            "post": {
+                "tags": [
+                    "登陆管理"
+                ],
+                "summary": "账号登陆-APP",
+                "operationId": "sysLoginAppUsingPOST",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "*/*"
+                ],
+                "parameters": [
+                    {
+                        "in": "body",
+                        "name": "userLogin",
+                        "description": "userLogin",
+                        "required": true,
+                        "schema": {
+                            "originalRef": "userLoginApp",
+                            "$ref": "#/definitions/userLoginApp"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "originalRef": "AjaxReturn«AuthLoginAppVo»",
+                            "$ref": "#/definitions/AjaxReturn«AuthLoginAppVo»"
+                        }
+                    },
+                    "201": {
+                        "description": "Created"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "Authorization": [
+                            "global"
+                        ]
+                    }
+                ],
+                "deprecated": false
+            }
+        },
+        "/app/sysLogout": {
+            "delete": {
+                "tags": [
+                    "登陆管理"
+                ],
+                "summary": "退出登陆-APP",
+                "operationId": "logoutAPPUsingDELETE",
+                "produces": [
+                    "*/*"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "originalRef": "AjaxReturn«object»",
+                            "$ref": "#/definitions/AjaxReturn«object»"
+                        }
+                    },
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    }
+                },
+                "security": [
+                    {
+                        "Authorization": [
+                            "global"
+                        ]
+                    }
+                ],
+                "deprecated": false
+            }
+        },
+        "/checkOrgName": {
+            "get": {
+                "tags": [
+                    "登陆管理"
+                ],
+                "summary": "账号注册校验企业名称",
+                "operationId": "checkOrgNameUsingGET",
+                "produces": [
+                    "*/*"
+                ],
+                "parameters": [
+                    {
+                        "name": "orgName",
+                        "in": "query",
+                        "description": "orgName",
+                        "required": false,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "originalRef": "AjaxReturn«boolean»",
+                            "$ref": "#/definitions/AjaxReturn«boolean»"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "Authorization": [
+                            "global"
+                        ]
+                    }
+                ],
+                "deprecated": false
+            }
+        },
+        "/dataScreen": {
+            "get": {
+                "tags": [
+                    "登陆管理"
+                ],
+                "summary": "根据token获取数据大屏跳转链接",
+                "operationId": "dataScreenUsingGET",
+                "produces": [
+                    "*/*"
+                ],
+                "parameters": [
+                    {
+                        "name": "token",
+                        "in": "query",
+                        "description": "账号token",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "originalRef": "RedirectView",
+                            "$ref": "#/definitions/RedirectView"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "Authorization": [
+                            "global"
+                        ]
+                    }
+                ],
+                "deprecated": false
+            }
+        },
+        "/findUserByTelephone": {
+            "get": {
+                "tags": [
+                    "登陆管理"
+                ],
+                "summary": "根据手机号获取账号列表-通用",
+                "operationId": "findUserByTelephoneUsingGET",
+                "produces": [
+                    "*/*"
+                ],
+                "parameters": [
+                    {
+                        "name": "sourceType",
+                        "in": "query",
+                        "description": "登陆来源(pc：1，app:2,AI:3)",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "name": "switchType",
+                        "in": "query",
+                        "description": "账号标识是否切换账号获取（否：0，是：1）",
+                        "required": true,
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "originalRef": "AjaxReturn«List«loginUserVo»»",
+                            "$ref": "#/definitions/AjaxReturn«List«loginUserVo»»"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "Authorization": [
+                            "global"
+                        ]
+                    }
+                ],
+                "deprecated": false
+            }
+        },
+        "/h5/sysLogin": {
+            "post": {
+                "tags": [
+                    "登陆管理"
+                ],
+                "summary": "H5端登陆",
+                "operationId": "scanCodeH5LoginUsingPOST",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "*/*"
+                ],
+                "parameters": [
+                    {
+                        "in": "body",
+                        "name": "userLoginH5",
+                        "description": "userLoginH5",
+                        "required": true,
+                        "schema": {
+                            "originalRef": "UserLoginH5",
+                            "$ref": "#/definitions/UserLoginH5"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "originalRef": "AjaxReturn«AuthLoginH5Vo»",
+                            "$ref": "#/definitions/AjaxReturn«AuthLoginH5Vo»"
+                        }
+                    },
+                    "201": {
+                        "description": "Created"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "Authorization": [
+                            "global"
+                        ]
+                    }
+                ],
+                "deprecated": false
+            }
+        },
+        "/isCurrentUsersTelephone": {
+            "get": {
+                "tags": [
+                    "登陆管理"
+                ],
+                "summary": "判断手机号是否是当前账号的手机号-PC",
+                "operationId": "isCurrentUsersTelephoneUsingGET",
+                "produces": [
+                    "*/*"
+                ],
+                "parameters": [
+                    {
+                        "name": "loginName",
+                        "in": "query",
+                        "description": "登录账号",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "name": "telephone",
+                        "in": "query",
+                        "description": "手机号",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "originalRef": "AjaxReturn«boolean»",
+                            "$ref": "#/definitions/AjaxReturn«boolean»"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "Authorization": [
+                            "global"
+                        ]
+                    }
+                ],
+                "deprecated": false
+            }
+        },
+        "/pc/register": {
+            "post": {
+                "tags": [
+                    "登陆管理"
+                ],
+                "summary": "账号注册-PC",
+                "operationId": "orgRegisterPcUsingPOST",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "*/*"
+                ],
+                "parameters": [
+                    {
+                        "in": "body",
+                        "name": "register",
+                        "description": "register",
+                        "required": true,
+                        "schema": {
+                            "originalRef": "orgRegisterPc",
+                            "$ref": "#/definitions/orgRegisterPc"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "originalRef": "AjaxReturn«AuthUserLoginRegisterVo»",
+                            "$ref": "#/definitions/AjaxReturn«AuthUserLoginRegisterVo»"
+                        }
+                    },
+                    "201": {
+                        "description": "Created"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "Authorization": [
+                            "global"
+                        ]
+                    }
+                ],
+                "deprecated": false
+            }
+        },
+        "/scanCode/login": {
+            "post": {
+                "tags": [
+                    "登陆管理"
+                ],
+                "summary": "扫码PC端码登陆",
+                "operationId": "scanCodeLoginUsingPOST",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "*/*"
+                ],
+                "parameters": [
+                    {
+                        "name": "scanCode",
+                        "in": "query",
+                        "description": "扫码登陆唯一标识",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "originalRef": "AjaxReturn«AuthScanCodeLoginVo»",
+                            "$ref": "#/definitions/AjaxReturn«AuthScanCodeLoginVo»"
+                        }
+                    },
+                    "201": {
+                        "description": "Created"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "Authorization": [
+                            "global"
+                        ]
+                    }
+                ],
+                "deprecated": false
+            }
+        },
+        "/scanCode/preconditions": {
+            "get": {
+                "tags": [
+                    "登陆管理"
+                ],
+                "summary": "获取扫码登陆前置条件",
+                "operationId": "scanCodePreconditionsUsingGET",
+                "produces": [
+                    "*/*"
+                ],
+                "parameters": [
+                    {
+                        "name": "userId",
+                        "in": "query",
+                        "description": "当前登陆账号userId",
+                        "required": false,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "originalRef": "AjaxReturn«scanCodePreconditionsVo»",
+                            "$ref": "#/definitions/AjaxReturn«scanCodePreconditionsVo»"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "Authorization": [
+                            "global"
+                        ]
+                    }
+                ],
+                "deprecated": false
+            }
+        },
+        "/send/verification/code": {
+            "post": {
+                "tags": [
+                    "登陆管理"
+                ],
+                "summary": "发送短信验证码-通用",
+                "operationId": "sendSMSLoginCodeUsingPOST",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "*/*"
+                ],
+                "parameters": [
+                    {
+                        "in": "body",
+                        "name": "sysSmsAdd",
+                        "description": "sysSmsAdd",
+                        "required": true,
+                        "schema": {
+                            "originalRef": "sysSmsAdd",
+                            "$ref": "#/definitions/sysSmsAdd"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "originalRef": "AjaxReturn«string»",
+                            "$ref": "#/definitions/AjaxReturn«string»"
+                        }
+                    },
+                    "201": {
+                        "description": "Created"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "Authorization": [
+                            "global"
+                        ]
+                    }
+                ],
+                "deprecated": false
+            }
+        },
+        "/switchAnewLogin": {
+            "post": {
+                "tags": [
+                    "登陆管理"
+                ],
+                "summary": "重新登陆-通用",
+                "operationId": "switchAnewLoginUsingPOST",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "*/*"
+                ],
+                "parameters": [
+                    {
+                        "in": "body",
+                        "name": "userLogin",
+                        "description": "userLogin",
+                        "required": true,
+                        "schema": {
+                            "originalRef": "switchAccountAnewLogin",
+                            "$ref": "#/definitions/switchAccountAnewLogin"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "originalRef": "AjaxReturn«AuthSwitchAnewLoginVo»",
+                            "$ref": "#/definitions/AjaxReturn«AuthSwitchAnewLoginVo»"
+                        }
+                    },
+                    "201": {
+                        "description": "Created"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "Authorization": [
+                            "global"
+                        ]
+                    }
+                ],
+                "deprecated": false
+            }
+        },
+        "/switchLogin": {
+            "post": {
+                "tags": [
+                    "登陆管理"
+                ],
+                "summary": "切换账号-通用",
+                "operationId": "switchLoginUsingPOST",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "*/*"
+                ],
+                "parameters": [
+                    {
+                        "in": "body",
+                        "name": "switchLogin",
+                        "description": "switchLogin",
+                        "required": true,
+                        "schema": {
+                            "originalRef": "switchAccountLogin",
+                            "$ref": "#/definitions/switchAccountLogin"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "originalRef": "AjaxReturn«AuthSwitchLoginVo»",
+                            "$ref": "#/definitions/AjaxReturn«AuthSwitchLoginVo»"
+                        }
+                    },
+                    "201": {
+                        "description": "Created"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "Authorization": [
+                            "global"
+                        ]
+                    }
+                ],
+                "deprecated": false
+            }
+        },
+        "/sysLogin": {
+            "post": {
+                "tags": [
+                    "登陆管理"
+                ],
+                "summary": "账号登陆-PC",
+                "operationId": "loginPCUsingPOST",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "*/*"
+                ],
+                "parameters": [
+                    {
+                        "in": "body",
+                        "name": "userLogin",
+                        "description": "userLogin",
+                        "required": true,
+                        "schema": {
+                            "originalRef": "userLoginPc",
+                            "$ref": "#/definitions/userLoginPc"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "originalRef": "AjaxReturn«AuthLoginPCVo»",
+                            "$ref": "#/definitions/AjaxReturn«AuthLoginPCVo»"
+                        }
+                    },
+                    "201": {
+                        "description": "Created"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "Authorization": [
+                            "global"
+                        ]
+                    }
+                ],
+                "deprecated": false
+            }
+        },
+        "/sysLogout": {
+            "delete": {
+                "tags": [
+                    "登陆管理"
+                ],
+                "summary": "退出登陆-PC",
+                "operationId": "logoutPCUsingDELETE",
+                "produces": [
+                    "*/*"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    }
+                },
+                "security": [
+                    {
+                        "Authorization": [
+                            "global"
+                        ]
+                    }
+                ],
+                "deprecated": false
+            }
+        },
+        "/user/login": {
+            "post": {
+                "tags": [
+                    "外部登陆管理"
+                ],
+                "summary": "账号登陆-智能地磅",
+                "operationId": "thirdUserLoginUsingPOST",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "*/*"
+                ],
+                "parameters": [
+                    {
+                        "name": "password",
+                        "in": "query",
+                        "description": "密码",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "name": "username",
+                        "in": "query",
+                        "description": "用户名",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "originalRef": "AjaxReturn«string»",
+                            "$ref": "#/definitions/AjaxReturn«string»"
+                        }
+                    },
+                    "201": {
+                        "description": "Created"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "Authorization": [
+                            "global"
+                        ]
+                    }
+                ],
+                "deprecated": false
+            }
+        }
+    },
+    "securityDefinitions": {
+        "Authorization": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    },
+    "definitions": {
+        "AjaxReturn«AuthLoginAppVo»": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "data": {
+                    "originalRef": "AuthLoginAppVo",
+                    "$ref": "#/definitions/AuthLoginAppVo"
+                },
+                "msg": {
+                    "type": "string"
+                }
+            },
+            "title": "AjaxReturn«AuthLoginAppVo»"
+        },
+        "AjaxReturn«AuthLoginH5Vo»": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "data": {
+                    "originalRef": "AuthLoginH5Vo",
+                    "$ref": "#/definitions/AuthLoginH5Vo"
+                },
+                "msg": {
+                    "type": "string"
+                }
+            },
+            "title": "AjaxReturn«AuthLoginH5Vo»"
+        },
+        "AjaxReturn«AuthLoginPCVo»": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "data": {
+                    "originalRef": "AuthLoginPCVo",
+                    "$ref": "#/definitions/AuthLoginPCVo"
+                },
+                "msg": {
+                    "type": "string"
+                }
+            },
+            "title": "AjaxReturn«AuthLoginPCVo»"
+        },
+        "AjaxReturn«AuthScanCodeLoginVo»": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "data": {
+                    "originalRef": "AuthScanCodeLoginVo",
+                    "$ref": "#/definitions/AuthScanCodeLoginVo"
+                },
+                "msg": {
+                    "type": "string"
+                }
+            },
+            "title": "AjaxReturn«AuthScanCodeLoginVo»"
+        },
+        "AjaxReturn«AuthSwitchAnewLoginVo»": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "data": {
+                    "originalRef": "AuthSwitchAnewLoginVo",
+                    "$ref": "#/definitions/AuthSwitchAnewLoginVo"
+                },
+                "msg": {
+                    "type": "string"
+                }
+            },
+            "title": "AjaxReturn«AuthSwitchAnewLoginVo»"
+        },
+        "AjaxReturn«AuthSwitchLoginVo»": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "data": {
+                    "originalRef": "AuthSwitchLoginVo",
+                    "$ref": "#/definitions/AuthSwitchLoginVo"
+                },
+                "msg": {
+                    "type": "string"
+                }
+            },
+            "title": "AjaxReturn«AuthSwitchLoginVo»"
+        },
+        "AjaxReturn«AuthUserLoginRegisterVo»": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "data": {
+                    "originalRef": "AuthUserLoginRegisterVo",
+                    "$ref": "#/definitions/AuthUserLoginRegisterVo"
+                },
+                "msg": {
+                    "type": "string"
+                }
+            },
+            "title": "AjaxReturn«AuthUserLoginRegisterVo»"
+        },
+        "AjaxReturn«List«loginUserVo»»": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "originalRef": "loginUserVo",
+                        "$ref": "#/definitions/loginUserVo"
+                    }
+                },
+                "msg": {
+                    "type": "string"
+                }
+            },
+            "title": "AjaxReturn«List«loginUserVo»»"
+        },
+        "AjaxReturn«boolean»": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "data": {
+                    "type": "boolean"
+                },
+                "msg": {
+                    "type": "string"
+                }
+            },
+            "title": "AjaxReturn«boolean»"
+        },
+        "AjaxReturn«loginAccountEffectiveVo»": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "data": {
+                    "originalRef": "loginAccountEffectiveVo",
+                    "$ref": "#/definitions/loginAccountEffectiveVo"
+                },
+                "msg": {
+                    "type": "string"
+                }
+            },
+            "title": "AjaxReturn«loginAccountEffectiveVo»"
+        },
+        "AjaxReturn«object»": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "data": {
+                    "type": "object"
+                },
+                "msg": {
+                    "type": "string"
+                }
+            },
+            "title": "AjaxReturn«object»"
+        },
+        "AjaxReturn«scanCodePreconditionsVo»": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "data": {
+                    "originalRef": "scanCodePreconditionsVo",
+                    "$ref": "#/definitions/scanCodePreconditionsVo"
+                },
+                "msg": {
+                    "type": "string"
+                }
+            },
+            "title": "AjaxReturn«scanCodePreconditionsVo»"
+        },
+        "AjaxReturn«string»": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "data": {
+                    "type": "string"
+                },
+                "msg": {
+                    "type": "string"
+                }
+            },
+            "title": "AjaxReturn«string»"
+        },
+        "ApplicationContext": {
+            "type": "object",
+            "properties": {
+                "applicationName": {
+                    "type": "string"
+                },
+                "autowireCapableBeanFactory": {
+                    "originalRef": "AutowireCapableBeanFactory",
+                    "$ref": "#/definitions/AutowireCapableBeanFactory"
+                },
+                "beanDefinitionCount": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "beanDefinitionNames": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "classLoader": {
+                    "originalRef": "ClassLoader",
+                    "$ref": "#/definitions/ClassLoader"
+                },
+                "displayName": {
+                    "type": "string"
+                },
+                "environment": {
+                    "originalRef": "Environment",
+                    "$ref": "#/definitions/Environment"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "parent": {
+                    "originalRef": "ApplicationContext",
+                    "$ref": "#/definitions/ApplicationContext"
+                },
+                "parentBeanFactory": {
+                    "originalRef": "BeanFactory",
+                    "$ref": "#/definitions/BeanFactory"
+                },
+                "startupDate": {
+                    "type": "integer",
+                    "format": "int64"
+                }
+            },
+            "title": "ApplicationContext"
+        },
+        "AuthLoginAppVo": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string",
+                    "description": "有效令牌"
+                },
+                "expires_in": {
+                    "type": "string",
+                    "description": "设置有效期为xx秒"
+                },
+                "userList": {
+                    "type": "array",
+                    "description": "账号信息集合",
+                    "items": {
+                        "originalRef": "loginUserVo",
+                        "$ref": "#/definitions/loginUserVo"
+                    }
+                }
+            },
+            "title": "AuthLoginAppVo",
+            "description": "登陆返回体"
+        },
+        "AuthLoginH5Vo": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string",
+                    "description": "有效令牌"
+                },
+                "customType": {
+                    "type": "integer",
+                    "format": "int32",
+                    "description": "客户类型（0 建设单位子公司 , 1 监理公司 ,2 项目部 ,3 供应商, 4 分包单位 ,5 设计院 ,6 施工单位集团公司，7 政府监管单位 ，8 建设单位集团公司 ，9 施工单位子公司,10 钢筋加工厂，11 混凝土搅拌站)"
+                },
+                "expires_in": {
+                    "type": "string",
+                    "description": "设置有效期为xx秒"
+                },
+                "pagePermissions": {
+                    "type": "array",
+                    "description": "页面权限",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "permissions": {
+                    "type": "array",
+                    "description": "按钮权限",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "supplyCode": {
+                    "type": "string",
+                    "description": "供应商供货类型"
+                }
+            },
+            "title": "AuthLoginH5Vo",
+            "description": "登陆返回体"
+        },
+        "AuthLoginPCVo": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string",
+                    "description": "有效令牌"
+                },
+                "expires_in": {
+                    "type": "string",
+                    "description": "设置有效期为xx秒"
+                },
+                "userList": {
+                    "type": "array",
+                    "description": "账号信息集合",
+                    "items": {
+                        "originalRef": "loginUserVo",
+                        "$ref": "#/definitions/loginUserVo"
+                    }
+                }
+            },
+            "title": "AuthLoginPCVo",
+            "description": "登陆返回体"
+        },
+        "AuthScanCodeLoginVo": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string",
+                    "description": "有效令牌"
+                },
+                "errorMsg": {
+                    "type": "string",
+                    "description": "错误信息提示"
+                },
+                "expires_in": {
+                    "type": "string",
+                    "description": "设置有效期为xx秒"
+                },
+                "loginStatus": {
+                    "type": "integer",
+                    "format": "int32",
+                    "description": "登陆状态：1：待扫码，2：扫码未确认，3：扫码已确认，4：登陆成功，5：已取消，6：存在异常的"
+                },
+                "userList": {
+                    "type": "array",
+                    "description": "账号信息集合",
+                    "items": {
+                        "originalRef": "loginUserVo",
+                        "$ref": "#/definitions/loginUserVo"
+                    }
+                }
+            },
+            "title": "AuthScanCodeLoginVo",
+            "description": "扫码登陆返回体"
+        },
+        "AuthSwitchAnewLoginVo": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string",
+                    "description": "有效令牌"
+                },
+                "expires_in": {
+                    "type": "string",
+                    "description": "设置有效期为xx秒"
+                }
+            },
+            "title": "AuthSwitchAnewLoginVo",
+            "description": "重新登陆返回体"
+        },
+        "AuthSwitchLoginVo": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string",
+                    "description": "有效令牌"
+                },
+                "expires_in": {
+                    "type": "string",
+                    "description": "设置有效期为xx秒"
+                }
+            },
+            "title": "AuthSwitchLoginVo",
+            "description": "切换账号返回体"
+        },
+        "AuthUserLoginRegisterVo": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string",
+                    "description": "有效令牌"
+                },
+                "expires_in": {
+                    "type": "string",
+                    "description": "设置有效期为xx秒"
+                },
+                "userList": {
+                    "type": "array",
+                    "description": "账号信息集合",
+                    "items": {
+                        "originalRef": "loginUserVo",
+                        "$ref": "#/definitions/loginUserVo"
+                    }
+                }
+            },
+            "title": "AuthUserLoginRegisterVo",
+            "description": "APP端、PC端注册立即登陆返回体"
+        },
+        "AutowireCapableBeanFactory": {
+            "type": "object",
+            "title": "AutowireCapableBeanFactory"
+        },
+        "BeanFactory": {
+            "type": "object",
+            "title": "BeanFactory"
+        },
+        "ClassLoader": {
+            "type": "object",
+            "properties": {
+                "parent": {
+                    "originalRef": "ClassLoader",
+                    "$ref": "#/definitions/ClassLoader"
+                }
+            },
+            "title": "ClassLoader"
+        },
+        "Environment": {
+            "type": "object",
+            "properties": {
+                "activeProfiles": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "defaultProfiles": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "title": "Environment"
+        },
+        "RedirectView": {
+            "type": "object",
+            "properties": {
+                "applicationContext": {
+                    "originalRef": "ApplicationContext",
+                    "$ref": "#/definitions/ApplicationContext"
+                },
+                "attributesMap": {
+                    "type": "object"
+                },
+                "beanName": {
+                    "type": "string"
+                },
+                "contentType": {
+                    "type": "string"
+                },
+                "exposePathVariables": {
+                    "type": "boolean"
+                },
+                "hosts": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "propagateQueryProperties": {
+                    "type": "boolean"
+                },
+                "redirectView": {
+                    "type": "boolean"
+                },
+                "requestContextAttribute": {
+                    "type": "string"
+                },
+                "staticAttributes": {
+                    "type": "object"
+                },
+                "url": {
+                    "type": "string"
+                }
+            },
+            "title": "RedirectView"
+        },
+        "UserAILoginApp": {
+            "type": "object",
+            "required": [
+                "forceType",
+                "phoneNumber",
+                "sourceType"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "description": "验证码,手机号登录必填"
+                },
+                "deviceToken": {
+                    "type": "string",
+                    "description": "设备token"
+                },
+                "deviceType": {
+                    "type": "integer",
+                    "format": "int32",
+                    "description": "设备平台类型(Android：1，iOS：2,macOS:3 )"
+                },
+                "forceType": {
+                    "type": "integer",
+                    "format": "int32",
+                    "description": "是否强制登陆：否：0，是：1"
+                },
+                "phoneNumber": {
+                    "type": "string",
+                    "description": "手机号,手机号登录必填"
+                },
+                "sourceType": {
+                    "type": "integer",
+                    "format": "int32",
+                    "description": "登陆来源：固定值：3"
+                },
+                "tagList": {
+                    "type": "array",
+                    "description": "标签集合",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "uuid": {
+                    "type": "string",
+                    "description": "唯一标识,手机号登录必填"
+                }
+            },
+            "title": "UserAILoginApp",
+            "description": "APP登陆请求信息"
+        },
+        "UserAILoginPc": {
+            "type": "object",
+            "required": [
+                "forceType",
+                "operateSource",
+                "phoneNumber",
+                "sourceType"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "description": "验证码"
+                },
+                "forceType": {
+                    "type": "integer",
+                    "format": "int32",
+                    "description": "是否强制登陆：否：0，是：1"
+                },
+                "operateSource": {
+                    "type": "integer",
+                    "format": "int32",
+                    "description": "操作来源(2：智能体-pc端，3：智能体-PC安装版)"
+                },
+                "phoneNumber": {
+                    "type": "string",
+                    "description": "手机号"
+                },
+                "sourceType": {
+                    "type": "integer",
+                    "format": "int32",
+                    "description": "登陆来源：固定值：3"
+                },
+                "uuid": {
+                    "type": "string",
+                    "description": "唯一标识"
+                }
+            },
+            "title": "UserAILoginPc",
+            "description": "PC登陆请求信息"
+        },
+        "UserLoginH5": {
+            "type": "object",
+            "required": [
+                "code",
+                "customId",
+                "phoneNumber",
+                "projectBidId",
+                "uuid"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "description": "验证码"
+                },
+                "customId": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "客户ID"
+                },
+                "phoneNumber": {
+                    "type": "string",
+                    "description": "手机号"
+                },
+                "projectBidId": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "标段ID"
+                },
+                "uuid": {
+                    "type": "string",
+                    "description": "唯一标识"
+                }
+            },
+            "title": "UserLoginH5",
+            "description": "H5登陆请求信息"
+        },
+        "authStatusVo": {
+            "type": "object",
+            "properties": {
+                "checkStatus": {
+                    "type": "integer",
+                    "format": "int32",
+                    "description": "状态 0:实名认证 1:核身认证 2:直接登录"
+                },
+                "mobile": {
+                    "type": "string",
+                    "description": "手机号"
+                }
+            },
+            "title": "authStatusVo",
+            "description": "用户认证状态vo"
+        },
+        "loginAccountEffectiveVo": {
+            "type": "object",
+            "properties": {
+                "errorMsg": {
+                    "type": "string",
+                    "description": "错误提示语"
+                },
+                "isEffective": {
+                    "type": "boolean",
+                    "description": "账号是否过期（是：ture,否：false）"
+                },
+                "tokenSign": {
+                    "type": "string",
+                    "description": "token标志，用于重新登陆"
+                }
+            },
+            "title": "loginAccountEffectiveVo",
+            "description": "账号登陸是否过期信息"
+        },
+        "loginUserVo": {
+            "type": "object",
+            "properties": {
+                "authStatusVo": {
+                    "description": "用户认证信息",
+                    "originalRef": "authStatusVo",
+                    "$ref": "#/definitions/authStatusVo"
+                },
+                "isMaster": {
+                    "type": "integer",
+                    "format": "int32",
+                    "description": "是否管理员 0:不是 1:是"
+                },
+                "loginName": {
+                    "type": "string",
+                    "description": "登陆用户名称"
+                },
+                "orgName": {
+                    "type": "string",
+                    "description": "组织名称"
+                },
+                "orgType": {
+                    "type": "integer",
+                    "format": "int32",
+                    "description": "组织类型"
+                },
+                "orgTypeName": {
+                    "type": "string",
+                    "description": "组织类型名称"
+                },
+                "pastStatus": {
+                    "type": "integer",
+                    "format": "int32",
+                    "description": "账号状态 0:禁用 1:启用 2:已过期"
+                },
+                "telephone": {
+                    "type": "string",
+                    "description": "手机号"
+                },
+                "userId": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "登陆用户id"
+                },
+                "userRolePrompt": {
+                    "type": "string",
+                    "description": "用户角色-提示语 AI专用"
+                }
+            },
+            "title": "loginUserVo",
+            "description": "账号信息"
+        },
+        "orgRegisterApp": {
+            "type": "object",
+            "required": [
+                "code",
+                "linkPhone",
+                "orgType",
+                "uuid"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "description": "验证码"
+                },
+                "linkPhone": {
+                    "type": "string",
+                    "description": "联系电话"
+                },
+                "orgName": {
+                    "type": "string",
+                    "description": "公司名称"
+                },
+                "orgType": {
+                    "type": "integer",
+                    "format": "int32",
+                    "description": " 6 供应商 7分包商 13 钢筋加工厂 15劳务工人"
+                },
+                "supplyCode": {
+                    "type": "string",
+                    "description": "供应编码 字典23 普通材料供应商supply_common  混凝土搅拌站supply_beton (供应商时必填)"
+                },
+                "uuid": {
+                    "type": "string",
+                    "description": "uuid唯一标识"
+                }
+            },
+            "title": "orgRegisterApp",
+            "description": "app端组织账号注册"
+        },
+        "orgRegisterPc": {
+            "type": "object",
+            "required": [
+                "code",
+                "linkPhone",
+                "orgName",
+                "orgType",
+                "uuid"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "description": "验证码"
+                },
+                "linkPhone": {
+                    "type": "string",
+                    "description": "联系电话"
+                },
+                "orgName": {
+                    "type": "string",
+                    "description": "公司名称"
+                },
+                "orgType": {
+                    "type": "integer",
+                    "format": "int32",
+                    "description": " 6 供应商 7分包商 13 钢筋加工厂"
+                },
+                "supplyCode": {
+                    "type": "string",
+                    "description": "供应编码 字典23 普通材料供应商supply_common  混凝土搅拌站supply_beton (供应商时必填)"
+                },
+                "uuid": {
+                    "type": "string",
+                    "description": "uuid唯一标识"
+                }
+            },
+            "title": "orgRegisterPc",
+            "description": "pc端组织账号注册"
+        },
+        "scanCodePreconditionsVo": {
+            "type": "object",
+            "properties": {
+                "expireTime": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "失效时间,毫秒值"
+                },
+                "scanCode": {
+                    "type": "string",
+                    "description": "扫码标识"
+                },
+                "serviceTime": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "服务器北京时间"
+                }
+            },
+            "title": "scanCodePreconditionsVo",
+            "description": "扫码登陆前置条件"
+        },
+        "switchAccountAnewLogin": {
+            "type": "object",
+            "required": [
+                "oldToken",
+                "phoneNumber",
+                "pkId",
+                "sourceType"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "description": "验证码"
+                },
+                "deviceToken": {
+                    "type": "string",
+                    "description": "设备token，sourceType=2时"
+                },
+                "deviceType": {
+                    "type": "integer",
+                    "format": "int32",
+                    "description": "设备平台类型(Android：1，iOS：2,macOS:3 )sourceType=2时"
+                },
+                "oldToken": {
+                    "type": "string",
+                    "description": "原来token"
+                },
+                "phoneNumber": {
+                    "type": "string",
+                    "description": "手机号"
+                },
+                "pkId": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "用户主键ID"
+                },
+                "sourceType": {
+                    "type": "integer",
+                    "format": "int32",
+                    "description": "登陆来源（pc:1,app:2）"
+                },
+                "tagList": {
+                    "type": "array",
+                    "description": "标签集合，sourceType=2时",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "uuid": {
+                    "type": "string",
+                    "description": "唯一标识"
+                }
+            },
+            "title": "switchAccountAnewLogin",
+            "description": "账号重新登陆-通用"
+        },
+        "switchAccountLogin": {
+            "type": "object",
+            "required": [
+                "phoneNumber",
+                "pkId",
+                "sourceType"
+            ],
+            "properties": {
+                "deviceToken": {
+                    "type": "string",
+                    "description": "设备token，sourceType=2时"
+                },
+                "deviceType": {
+                    "type": "integer",
+                    "format": "int32",
+                    "description": "设备平台类型(Android：1，iOS：2,macOS:3 )sourceType=2时"
+                },
+                "phoneNumber": {
+                    "type": "string",
+                    "description": "手机号"
+                },
+                "pkId": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "用户主键ID"
+                },
+                "sourceType": {
+                    "type": "integer",
+                    "format": "int32",
+                    "description": "登陆来源：pc:1, app :2，AI：3"
+                },
+                "tagList": {
+                    "type": "array",
+                    "description": "标签集合，sourceType=2时",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "title": "switchAccountLogin",
+            "description": "切换账号登陆-通用"
+        },
+        "sysSmsAdd": {
+            "type": "object",
+            "required": [
+                "code",
+                "phoneNumber",
+                "sendType",
+                "uuid"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "description": "验证码"
+                },
+                "phoneNumber": {
+                    "type": "string",
+                    "description": "手机号"
+                },
+                "sendType": {
+                    "type": "integer",
+                    "format": "int32",
+                    "description": "用途类型 登陆：1，找回密码：3，账号注册：4"
+                },
+                "uuid": {
+                    "type": "string",
+                    "description": "唯一标识"
+                }
+            },
+            "title": "sysSmsAdd",
+            "description": "短信验证码"
+        },
+        "userLoginApp": {
+            "type": "object",
+            "required": [
+                "forceType",
+                "phoneNumber",
+                "sourceType"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "description": "验证码,手机号登录必填"
+                },
+                "deviceToken": {
+                    "type": "string",
+                    "description": "设备token"
+                },
+                "deviceType": {
+                    "type": "integer",
+                    "format": "int32",
+                    "description": "设备平台类型(Android：1，iOS：2,macOS:3 )"
+                },
+                "forceType": {
+                    "type": "integer",
+                    "format": "int32",
+                    "description": "是否强制登陆：否：0，是：1"
+                },
+                "phoneNumber": {
+                    "type": "string",
+                    "description": "手机号,手机号登录必填"
+                },
+                "sourceType": {
+                    "type": "integer",
+                    "format": "int32",
+                    "description": "登陆来源：固定值：2"
+                },
+                "tagList": {
+                    "type": "array",
+                    "description": "标签集合",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "uuid": {
+                    "type": "string",
+                    "description": "唯一标识,手机号登录必填"
+                }
+            },
+            "title": "userLoginApp",
+            "description": "APP登陆请求信息"
+        },
+        "userLoginPc": {
+            "type": "object",
+            "required": [
+                "forceType",
+                "phoneNumber",
+                "sourceType"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "description": "验证码"
+                },
+                "forceType": {
+                    "type": "integer",
+                    "format": "int32",
+                    "description": "是否强制登陆：否：0，是：1"
+                },
+                "phoneNumber": {
+                    "type": "string",
+                    "description": "手机号"
+                },
+                "sourceType": {
+                    "type": "integer",
+                    "format": "int32",
+                    "description": "登陆来源：固定值：1"
+                },
+                "uuid": {
+                    "type": "string",
+                    "description": "唯一标识"
+                }
+            },
+            "title": "userLoginPc",
+            "description": "PC登陆请求信息"
+        }
+    }
+}

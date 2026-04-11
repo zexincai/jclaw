@@ -131,6 +131,10 @@ function extractText(message: unknown): string {
 }
 
 function persistMessage(msg: Message) {
+  // 过滤掉空的助手消息，防止产生空白历史记录
+  if (msg.role === 'assistant' && !msg.content.trim() && !msg.thinking?.trim() && !msg.platformAction && !msg.actionJson) {
+    return
+  }
   const key = `jclaw_msgs_${msg.sessionId}`
   try {
     const existing: Message[] = JSON.parse(localStorage.getItem(key) ?? '[]')
@@ -182,17 +186,25 @@ export function useChat() {
         const text = stripThinkingTags(rawText)
 
         if (!streamingId) {
-          const msg: Message = {
-            id: crypto.randomUUID(),
-            sessionId: store.activeSessionId,
-            role: 'assistant',
-            content: '',
-            thinking: thinking || undefined,
-            status: 'streaming',
-            createdAt: new Date().toISOString(),
+          // 优先寻找现有的空占位消息进行复用，防止重复气泡
+          const activeMsgs = store.activeSessionMessages()
+          const lastMsg = activeMsgs[activeMsgs.length - 1]
+          if (lastMsg && lastMsg.role === 'assistant' && !lastMsg.content) {
+            streamingId = lastMsg.id
+            lastMsg.status = 'streaming'
+          } else {
+            const msg: Message = {
+              id: crypto.randomUUID(),
+              sessionId: store.activeSessionId,
+              role: 'assistant',
+              content: '',
+              thinking: thinking || undefined,
+              status: 'streaming',
+              createdAt: new Date().toISOString(),
+            }
+            store.messages.push(msg)
+            streamingId = msg.id
           }
-          store.messages.push(msg)
-          streamingId = msg.id
         }
 
         // delta 内容是累积全文，直接替换而非追加
@@ -213,8 +225,8 @@ export function useChat() {
         const thinking = extractThinking(rawText) || streamingThinking
         const text = stripThinkingTags(rawText) || streamingContent
 
-        // 内容为空说明占位消息没有被填充（内容由其他流完成），直接移除
-        if (!text) {
+        // 内容为空说明占位消息没有被填充，直接移除（除非有思考过程或指令）
+        if (!text && !thinking && !extractPlatformAction(text) && !extractAction(text)) {
           store.messages = store.messages.filter(m => m.id !== streamingId)
           streamingId = null; streamingContent = ''; streamingThinking = ''
           return
@@ -315,17 +327,27 @@ export function useChat() {
                 msg.thinking = thinking || undefined
               }
             } else {
-              const msg: Message = {
-                id: crypto.randomUUID(),
-                sessionId: store.activeSessionId,
-                role: 'assistant',
-                content: text,
-                thinking: thinking || undefined,
-                status: 'streaming',
-                createdAt: new Date().toISOString(),
+              // 优先寻找现有的空占位消息进行复用
+              const activeMsgs = store.activeSessionMessages()
+              const lastMsg = activeMsgs[activeMsgs.length - 1]
+              if (lastMsg && lastMsg.role === 'assistant' && !lastMsg.content) {
+                streamingId = lastMsg.id
+                lastMsg.content = text
+                lastMsg.thinking = thinking || undefined
+                lastMsg.status = 'streaming'
+              } else {
+                const msg: Message = {
+                  id: crypto.randomUUID(),
+                  sessionId: store.activeSessionId,
+                  role: 'assistant',
+                  content: text,
+                  thinking: thinking || undefined,
+                  status: 'streaming',
+                  createdAt: new Date().toISOString(),
+                }
+                store.messages.push(msg)
+                streamingId = msg.id
               }
-              store.messages.push(msg)
-              streamingId = msg.id
             }
           }
         }
@@ -446,7 +468,8 @@ export function useChat() {
             ...(platformAction ? { platformAction } : {}),
           }
         })
-      store.messages = store.messages.filter(m => m.sessionId !== sessionId).concat(msgs)
+      store.messages = store.messages.filter(m => m.sessionId !== sessionId)
+        .concat(msgs.filter(m => m.content.trim() !== '' || m.platformAction))
       if (msgs.length > 0) {
         const lastUserMsg = [...msgs].reverse().find(m => m.role === 'user')
         if (lastUserMsg) {
@@ -462,7 +485,9 @@ export function useChat() {
     const key = `jclaw_msgs_${sessionId}`
     try {
       const msgs: Message[] = JSON.parse(localStorage.getItem(key) ?? '[]')
-      store.messages = store.messages.filter(m => m.sessionId !== sessionId).concat(msgs)
+      // 恢复时过滤空消息
+      store.messages = store.messages.filter(m => m.sessionId !== sessionId)
+        .concat(msgs.filter(m => m.content.trim() !== '' || m.thinking?.trim() || m.platformAction || m.actionJson))
     } catch { /* ignore */ }
   }
 
