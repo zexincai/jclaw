@@ -63,14 +63,19 @@
         <!-- 表单 -->
         <form @submit.prevent="handleLogin" class="space-y-7">
           <div class="field">
-            <label>用户名</label>
-            <input v-model="username" type="text" autocomplete="username" placeholder="请输入用户名" :disabled="loading" />
+            <label>手机号</label>
+            <input maxlength="11" v-model="phoneNumber" type="tel" placeholder="请输入手机号" :disabled="loading" />
           </div>
 
           <div class="field">
-            <label>密码</label>
-            <input v-model="password" type="password" autocomplete="current-password" placeholder="请输入密码"
-              :disabled="loading" />
+            <label>验证码</label>
+            <div class="flex gap-3">
+              <input v-model="smsCode" type="text" placeholder="输入验证码" :disabled="loading" class="flex-1" />
+              <button type="button" class="code-btn" :disabled="!!countdown || !phoneNumber || loading"
+                @click="handleGetCode">
+                {{ countdown ? `${countdown}s` : '获取验证码' }}
+              </button>
+            </div>
           </div>
 
           <!-- 错误 -->
@@ -80,8 +85,8 @@
 
           <!-- 提交 -->
           <div class="pt-1">
-            <button type="submit" :disabled="loading || !username || !password" class="submit-btn">
-              <span v-if="!loading">进入系统</span>
+            <button type="submit" :disabled="loading || !phoneNumber || !smsCode" class="submit-btn">
+              <span v-if="!loading">登录系统</span>
               <span v-else class="flex items-center justify-center gap-2.5">
                 <svg class="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
                   <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" />
@@ -93,6 +98,10 @@
           </div>
         </form>
 
+        <!-- 滑块验证码 -->
+        <SliderCaptcha :visible="captchaVisible" :captcha-data="captchaData" @close="captchaVisible = false"
+          @refresh="fetchCaptcha" @success="onCaptchaSuccess" />
+
         <!-- 底部标识 -->
         <p class="mt-12 font-mono text-[10px] tracking-widest" style="color: #4a4540;">
           TLS 1.3 加密 · 数据安全保障
@@ -103,27 +112,89 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onUnmounted } from 'vue'
 import { useAuth } from '../composables/useAuth'
+import { getCaptchaApi, sendSmsCodeApi } from '../api/login'
+import SliderCaptcha from '../components/SliderCaptcha.vue'
+import { loading as globalLoading } from '../utils/loading'
 
 const auth = useAuth()
-const username = ref('')
-const password = ref('')
+const phoneNumber = ref('')
+const smsCode = ref('')
 const loading = ref(false)
 const error = ref('')
 
-async function handleLogin() {
-  if (!username.value || !password.value) return
-  loading.value = true
-  error.value = ''
+// 验证码逻辑
+const captchaVisible = ref(false)
+const captchaData = ref<any>(null)
+const countdown = ref(0)
+const smsUuid = ref('')
+let timer: any = null
+
+async function fetchCaptcha() {
+  globalLoading.show('Secure Validation')
   try {
-    await auth.login(username.value, password.value)
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : '登录失败，请重试'
+    captchaData.value = await getCaptchaApi()
+  } catch (e: any) {
+    error.value = e.message || '获取验证码失败'
   } finally {
-    loading.value = false
+    globalLoading.hide()
   }
 }
+
+async function handleGetCode() {
+  if (!phoneNumber.value) {
+    error.value = '请输入手机号'
+    return
+  }
+  error.value = ''
+  await fetchCaptcha()
+  captchaVisible.value = true
+}
+
+async function onCaptchaSuccess(distance: number) {
+  try {
+    globalLoading.show('Verifying')
+    const uuid = await sendSmsCodeApi(phoneNumber.value, captchaData.value.uuid, distance)
+    smsUuid.value = uuid
+    captchaVisible.value = false
+    startCountdown()
+  } catch (e: any) {
+    error.value = e.message || '发送验证码失败'
+    // 失败通常意味着位置不准，刷新一波
+    await fetchCaptcha()
+  } finally {
+    globalLoading.hide()
+  }
+}
+
+function startCountdown() {
+  countdown.value = 60
+  timer = setInterval(() => {
+    if (countdown.value > 0) {
+      countdown.value--
+    } else {
+      clearInterval(timer)
+    }
+  }, 1000)
+}
+
+async function handleLogin() {
+  if (!phoneNumber.value || !smsCode.value) return
+  globalLoading.show('Authenticating')
+  error.value = ''
+  try {
+    await auth.loginByMobile(phoneNumber.value, smsCode.value, smsUuid.value)
+  } catch (e: any) {
+    error.value = e.message || '登录失败，请重试'
+  } finally {
+    globalLoading.hide()
+  }
+}
+
+onUnmounted(() => {
+  if (timer) clearInterval(timer)
+})
 </script>
 
 <style scoped>
@@ -370,5 +441,28 @@ async function handleLogin() {
 .submit-btn:disabled {
   opacity: 0.3;
   cursor: not-allowed;
+}
+
+.code-btn {
+  padding: 0 16px;
+  background: #1C2B45;
+  border: 1px solid #c8bfaf;
+  border-radius: 3px;
+  font-size: 13px;
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.code-btn:hover:not(:disabled) {
+  border-color: #b91c1c;
+  color: #b91c1c;
+}
+
+.code-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #365386;
 }
 </style>
