@@ -138,6 +138,7 @@ function persistMessage(msg: Message) {
 export function useChat() {
   const store = useChatStore()
   const ws = useWebSocket()
+  const auth = useAuth()
 
   // 只注册一次全局事件监听
   if (!initialized) {
@@ -148,6 +149,28 @@ export function useChat() {
     ws.on('connected', (payload: unknown) => {
       const p = payload as { sessionKey?: string }
       if (p.sessionKey) currentSessionKey = p.sessionKey
+      auth.setConnectionStatus('connected')
+    })
+
+    ws.on('auth-error', () => {
+      store.wsStatus = 'disconnected'
+      auth.setConnectionStatus('failed', '认证失败，请检查 Token 是否正确')
+    })
+
+    ws.on('invalid-request', () => {
+      store.wsStatus = 'disconnected'
+      auth.setConnectionStatus('failed', '无效的请求，请配置 OpenClaw Token')
+    })
+
+    ws.on('max-retries', () => {
+      store.wsMaxRetries = true
+      store.wsStatus = 'disconnected'
+      auth.setConnectionStatus('failed', '连接失败，已达到最大重试次数')
+    })
+
+    ws.on('reconnecting', () => {
+      store.wsStatus = 'connecting'
+      auth.setConnectionStatus('verifying')
     })
 
     // chat 事件：新格式 state = 'delta' | 'final' | 'aborted' | 'error'
