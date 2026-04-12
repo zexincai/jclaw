@@ -1,6 +1,7 @@
 import { getDeviceId } from './device'
 
-const BASE_URL = 'http://192.168.2.99:9199'
+const BASE_URL = import.meta.env.VITE_API_BASE_URL
+
 let isLoggingOut = false
 
 // 统一响应结构
