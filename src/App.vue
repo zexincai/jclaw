@@ -78,6 +78,13 @@
         <div class="h-1.5 bg-gradient-to-r from-red-400 via-red-600 to-red-400" />
       </div>
     </div>
+
+    <!-- 实名认证弹窗 (强制显示) -->
+    <RealNameAuthModal v-if="auth.needsCertification.value" :telephone="auth.currentRole.value?.telephone || ''"
+      @success="onAuthSuccess" />
+
+    <!-- 切换角色加载中 -->
+    <GlobalLoading :visible="store.switchingRole" message="加载中" />
   </div>
 </template>
 
@@ -89,6 +96,8 @@ import ProjectSwitcher from './components/layout/ProjectSwitcher.vue'
 import SidePanel from './components/layout/SidePanel.vue'
 import ChatArea from './components/layout/ChatArea.vue'
 import BusinessPanel from './components/layout/BusinessPanel.vue'
+import RealNameAuthModal from './components/modals/RealNameAuthModal.vue'
+import GlobalLoading from './components/GlobalLoading.vue'
 import LoginView from './views/LoginView.vue'
 import { useWebSocket } from './composables/useWebSocket'
 import { useUsage } from './composables/useUsage'
@@ -107,6 +116,11 @@ const auth = useAuth()
 
 const sidePanelOpen = ref(true)
 const pairingModalVisible = ref(false)
+
+function onAuthSuccess() {
+  auth.updateCertificationStatus(true)
+}
+
 watch(bridge.isVisible, v => {
   if (v) {
     sidePanelOpen.value = false

@@ -10,12 +10,6 @@
       无法连接，请检查 OpenClaw 是否运行
     </div>
 
-    <!-- Agent 运行状态条（仅 iframe 打开时显示） -->
-    <div v-if="bridge.isVisible.value"
-      class="sticky top-0 z-10 mb-3 py-1.5 px-3 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-600 text-center">
-      JClaw 正在与业务界面交互中…
-    </div>
-
     <MessageBubble v-for="msg in store.activeSessionMessages()" :key="msg.id" :message="msg"
       @retry="chat.send(msg.content, msg.attachments)"
       @open-modal="(action) => bridge.openModal(action.modal, action.data)" />

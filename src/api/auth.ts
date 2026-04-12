@@ -214,10 +214,64 @@ export interface SwitchAccountAnewLogin {
   pkId: number
   /** 登陆来源（pc:1,app:2） */
   sourceType: number
-  /** 标签集合，sourceType=2时 */
-  tagList?: string[]
   /** 唯一标识 */
   uuid?: string
+}
+
+/**
+ * 实名认证请求参数
+ */
+export interface IdentityAuthParams {
+  /** 姓名 */
+  name: string
+  /** 证件类型 */
+  certType: string
+  /** 证件号码 */
+  cardNum: string
+  /** 手机号 */
+  telephone: string
+  /** 业务类型 (1: 实名) */
+  distinguishType: string | number
+  /** 类型 */
+  type: number
+  /** 验证码 (可选) */
+  code?: string
+  /** UUID (可选) */
+  uuid?: string
+  [key: string]: any
+}
+
+/**
+ * 认证状态查询参数
+ */
+export interface AuthStateParams {
+  /** 业务类型 (0) */
+  distinguishType: number
+  /** 业务ID */
+  pkId: string | number
+  [key: string]: any
+}
+
+/**
+ * 认证结果返回
+ */
+export interface IdentityAuthVo {
+  /** 面部识别 URL */
+  faceSwipingUrl: string
+  /** 业务辨别 ID */
+  userFaceDistinguishId: string
+  /** 倒计时 */
+  countdownTime: number
+}
+
+/**
+ * 认证状态返回
+ */
+export interface AuthStateVo {
+  /** 状态 2: 成功, 3: 失败 */
+  status: number
+  /** 错误信息 */
+  errorInfo?: string
 }
 
 // ==================== 响应数据接口 ====================
@@ -562,9 +616,42 @@ export function switchAnewLogin(params: SwitchAccountAnewLogin) {
 }
 
 /**
- * 获取扫码登陆前置条件
- * @summary 获取扫码登录前置信息
- * @param userId 当前登陆账号userId（可选）
+ * 提交实名认证信息
+ */
+export function noTokenFaceSwiping(params: IdentityAuthParams) {
+  return http.post<IdentityAuthVo>('/eng/enterprise/actualAuth', params)
+}
+
+/**
+ * 直接获取认证二维码 (重新授权)
+ */
+export function noTokenFaceSwipingNoParam() {
+  return http.post<IdentityAuthVo>('/eng/enterprise/personAuthorization', {})
+}
+
+/**
+ * 查询认证状态
+ */
+export function userFaceDistinguishState(params: AuthStateParams) {
+  return http.get<AuthStateVo>('/eng/public/judgeBusinessSuccess', params)
+}
+
+/**
+ * 获取二维码唯一标识
+ */
+export function addQRCode() {
+  return http.get<string>('/eng/public/addQRCode')
+}
+
+/**
+ * 查询二维码扫码状态
+ */
+export function queryQRCode(unique: string) {
+  return http.get<AjaxResult<number>>('/eng/public/queryQRCode', { unique })
+}
+
+/**
+ * 限制账号登陆前置条件
  */
 export function scanCodePreconditions(userId?: string) {
   return http.get<AjaxResult<ScanCodePreconditionsVo>>('/auth/scanCode/preconditions', userId ? { userId } : undefined)

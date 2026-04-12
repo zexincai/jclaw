@@ -66,7 +66,7 @@ async function composeObject(
 async function uploadChunk(
   file: File,
   uploadData: UploadTokenResponse,
-  onProgress?: (progress: { number: number; total: number }) => void
+  onProgress?: (progress: { percent: number }) => void
 ): Promise<string> {
   let CHUNK_SIZE = 6 * 1024 * 1024 // 6MB
 
@@ -119,11 +119,12 @@ async function uploadChunk(
             }
 
             successNumber++
-            console.log(`已成功数量：${successNumber}，总数量：${totalChunks}`)
+            const percent = Math.round((successNumber / totalChunks) * 100)
+            console.log(`已成功数量：${successNumber}，总数量：${totalChunks}，进度：${percent}%`)
             resolve(objectKey)
 
             if (onProgress) {
-              onProgress({ number: i, total: totalChunks })
+              onProgress({ percent })
             }
           } catch (error) {
             reject(error)
@@ -137,7 +138,9 @@ async function uploadChunk(
       if (totalChunks === 1) {
         const promise = new Promise<string>(async (resolve, reject) => {
           try {
+            if (onProgress) onProgress({ percent: 10 })
             const { presignedObjectUrl, objectKey } = await getPresignedUrl()
+            if (onProgress) onProgress({ percent: 30 })
             const response = await fetch(presignedObjectUrl, {
               method: 'PUT',
               body: file,
@@ -151,6 +154,7 @@ async function uploadChunk(
               return reject(new Error('切片上传失败'))
             }
 
+            if (onProgress) onProgress({ percent: 100 })
             resolve(objectKey)
           } catch (error) {
             reject(error)
@@ -180,11 +184,12 @@ async function uploadChunk(
               }
 
               successNumber++
-              console.log(`已成功数量：${successNumber}，总数量：${totalChunks}`)
+              const percent = Math.round((successNumber / totalChunks) * 100)
+              console.log(`已成功数量：${successNumber}，总数量：${totalChunks}，进度：${percent}%`)
               resolve(objectKey)
 
               if (onProgress) {
-                onProgress({ number: i, total: totalChunks })
+                onProgress({ percent })
               }
             } catch (error) {
               reject(error)
@@ -247,7 +252,7 @@ export async function uploadFile(
 
       // 腾讯云 COS 上传
       const cos = new COS({
-        getAuthorization: (options, callback) => {
+        getAuthorization: (_options, callback) => {
           callback({
             TmpSecretId: data.tmpSecretId,
             TmpSecretKey: data.tmpSecretKey,
@@ -333,8 +338,29 @@ export async function uploadVideo(
   return uploadFile(file, onProgress)
 }
 
+/**
+ * 上传语音视频（带类型校验的录音文件）
+ */
+export async function uploadAudio(
+  file: File,
+  onProgress?: (progress: any) => void
+): Promise<string> {
+  // 对于手机端的宽容处理，有的可能是 audio/aac 或其他
+  if (!file.type.startsWith('audio/')) {
+    throw new Error('仅支持上传音频格式文件')
+  }
+
+  const maxSize = 20 * 1024 * 1024 // 录音一般不超过20MB
+  if (file.size > maxSize) {
+    throw new Error('音频大小不能超过 20MB')
+  }
+
+  return uploadFile(file, onProgress)
+}
+
 export default {
   uploadFile,
   uploadImage,
   uploadVideo,
+  uploadAudio
 }

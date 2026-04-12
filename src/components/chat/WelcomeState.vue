@@ -3,7 +3,8 @@
     <!-- 问候标题 -->
     <div class="mb-12 text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div class="mb-6 flex justify-center">
-        <div class="w-20 h-20 rounded-3xl bg-white shadow-xl shadow-slate-200/50 flex items-center justify-center p-1 border border-slate-100 rotate-3 hover:rotate-0 transition-transform duration-300">
+        <div
+          class="w-20 h-20 rounded-3xl bg-white shadow-xl shadow-slate-200/50 flex items-center justify-center p-1 border border-slate-100 rotate-3 hover:rotate-0 transition-transform duration-300">
           <img :src="logoUrl" class="w-full h-full rounded-2xl object-cover" />
         </div>
       </div>
@@ -13,20 +14,21 @@
     </div>
 
     <!-- 欢迎卡片容器 -->
-    <div class="w-full max-w-2xl bg-white rounded-3xl border border-gray-100 shadow-2xl shadow-slate-200/50 overflow-hidden animate-in fade-in zoom-in duration-500 delay-200">
+    <div
+      class="w-full max-w-2xl bg-white rounded-3xl border border-gray-100 shadow-2xl shadow-slate-200/50 overflow-hidden animate-in fade-in zoom-in duration-500 delay-200">
       <!-- 快捷操作栏 -->
       <div class="flex items-center gap-3 px-6 pt-6 pb-2 overflow-x-auto scrollbar-none">
         <div v-for="tab in TABS" :key="tab.type" class="relative shrink-0" :ref="el => setTabRef(tab.type, el)">
-          <button
-            @click="togglePopup(tab.type)"
+          <button @click="togglePopup(tab.type)"
             class="flex items-center gap-2 px-4 py-2 border rounded-full text-sm font-medium transition-all group"
             :class="openType === tab.type
               ? 'bg-blue-50 border-blue-200 text-blue-600'
-              : 'bg-gray-50 hover:bg-white hover:shadow-md border-gray-100 text-gray-600'"
-          >
-            <component :is="tab.icon" :size="16" class="group-hover:text-blue-500" :class="openType === tab.type ? 'text-blue-500' : 'text-gray-400'" />
+              : 'bg-gray-50 hover:bg-white hover:shadow-md border-gray-100 text-gray-600'">
+            <component :is="tab.icon" :size="16" class="group-hover:text-blue-500"
+              :class="openType === tab.type ? 'text-blue-500' : 'text-gray-400'" />
             <span>{{ tab.label }}</span>
-            <ChevronRight :size="14" :class="openType === tab.type ? 'text-blue-300' : 'text-gray-300 group-hover:text-blue-300'" />
+            <ChevronRight :size="14"
+              :class="openType === tab.type ? 'text-blue-300' : 'text-gray-300 group-hover:text-blue-300'" />
           </button>
         </div>
       </div>
@@ -45,32 +47,23 @@
 
   <!-- Popup -->
   <Teleport to="body">
-    <div
-      v-if="openType && popupPos"
+    <div v-if="openType && popupPos"
       :style="{ position: 'fixed', bottom: popupPos.bottom + 'px', left: popupPos.left + 'px', zIndex: 9999 }"
-      class="bg-white border border-gray-200 rounded-2xl shadow-xl py-2 min-w-[160px]"
-    >
+      class="bg-white border border-gray-200 rounded-2xl shadow-xl py-2 min-w-[160px]">
       <div v-if="loading" class="px-4 py-3 text-xs text-gray-400 text-center">加载中...</div>
       <template v-else>
-        <div
-          v-for="item in items"
-          :key="item.pkId"
+        <div v-for="item in items" :key="item.pkId"
           class="flex items-center gap-2 px-4 py-2 hover:bg-gray-50 transition-colors group cursor-pointer"
-          @click="selectItem(item)"
-        >
+          @click="selectItem(item)">
           <span class="flex-1 text-xs text-blue-500 truncate">{{ item.quickTitle }}</span>
-          <button
-            @click.stop="deleteItem(item.pkId!)"
-            class="text-red-400 hover:text-red-500 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-          >
+          <button @click.stop="deleteItem(item.pkId!)"
+            class="text-red-400 hover:text-red-500 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
             <Trash2 :size="13" />
           </button>
         </div>
         <div v-if="items.length === 0" class="px-4 py-2 text-xs text-gray-300 text-center">暂无数据</div>
-        <button
-          @click="openAdd"
-          class="flex items-center gap-1 px-4 py-2 text-xs text-gray-400 hover:text-blue-500 hover:bg-gray-50 transition-colors w-full"
-        >
+        <button @click="openAdd"
+          class="flex items-center gap-1 px-4 py-2 text-xs text-gray-400 hover:text-blue-500 hover:bg-gray-50 transition-colors w-full">
           <Plus :size="12" />
           自定义
         </button>
@@ -83,38 +76,29 @@
 
   <!-- Add Dialog -->
   <Teleport to="body">
-    <div v-if="showDialog" class="fixed inset-0 bg-black/20 flex items-center justify-center z-[9999]" @click="closeDialog">
+    <div v-if="showDialog" class="fixed inset-0 bg-black/20 flex items-center justify-center z-[9999]"
+      @click="closeDialog">
       <div class="bg-white rounded-xl shadow-xl w-96 p-6" @click.stop>
         <div class="mb-4 text-sm text-gray-400 text-center">
-          {{ TABS.find(t => t.type === openType)?.label }}
+          {{TABS.find(t => t.type === openType)?.label}}
         </div>
         <div class="space-y-4">
           <div class="flex items-center gap-3">
             <span class="text-sm text-gray-600 w-20 shrink-0 whitespace-nowrap">提示词标签</span>
-            <input
-              v-model="form.quickTitle"
-              class="flex-1 border border-gray-200 rounded px-3 py-1.5 text-sm outline-none focus:border-blue-300"
-            />
+            <input placeholder="请输入" v-model="form.quickTitle"
+              class="flex-1 border border-gray-200 rounded px-3 py-1.5 text-sm outline-none focus:border-blue-300" />
           </div>
           <div class="flex items-start gap-3">
             <span class="text-sm text-gray-600 w-20 shrink-0 whitespace-nowrap pt-1.5">提示词内容</span>
-            <textarea
-              v-model="form.quickWords"
-              rows="4"
-              class="flex-1 border border-gray-200 rounded px-3 py-1.5 text-sm outline-none focus:border-blue-300 resize-none"
-            />
+            <textarea placeholder="请输入" v-model="form.quickWords" rows="4"
+              class="flex-1 border border-gray-200 rounded px-3 py-1.5 text-sm outline-none focus:border-blue-300 resize-none" />
           </div>
         </div>
         <div class="flex justify-end gap-2 mt-6">
-          <button
-            @click="closeDialog"
-            class="px-4 py-1.5 text-sm text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
-          >取消</button>
-          <button
-            @click="saveItem"
-            :disabled="saving || !form.quickTitle.trim() || !form.quickWords.trim()"
-            class="px-4 py-1.5 text-sm text-white bg-blue-500 rounded hover:bg-blue-600 disabled:opacity-50 transition-colors"
-          >保存</button>
+          <button @click="closeDialog"
+            class="px-4 py-1.5 text-sm text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors">取消</button>
+          <button @click="saveItem" :disabled="saving || !form.quickTitle.trim() || !form.quickWords.trim()"
+            class="px-4 py-1.5 text-sm text-white bg-blue-500 rounded hover:bg-blue-600 disabled:opacity-50 transition-colors">保存</button>
         </div>
       </div>
     </div>
@@ -133,8 +117,6 @@ import {
   deleteChatQuick,
   type EngAgentChatQuickVO,
 } from '../../api/chatQuick'
-
-const emit = defineEmits<{ action: [message: string] }>()
 
 const chat = useChat()
 
@@ -243,6 +225,7 @@ function closeDialog() {
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
+
 .scrollbar-none {
   -ms-overflow-style: none;
   scrollbar-width: none;

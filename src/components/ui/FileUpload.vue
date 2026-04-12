@@ -16,7 +16,7 @@ import { uploadFile } from '../../utils/upload'
 
 const MAX = 10 * 1024 * 1024
 defineProps<{ accept?: string }>()
-const emit = defineEmits<{ file: [Attachment]; error: [string] }>()
+const emit = defineEmits<{ file: [Attachment]; error: [string]; progress: [number] }>()
 const input = ref<HTMLInputElement | null>(null)
 const uploading = ref(false)
 
@@ -29,16 +29,41 @@ async function onChange(e: Event) {
   }
 
   uploading.value = true
+  emit('progress', 0)
 
   try {
     // 上传文件到腾讯云，获取真实 URL
-    const fileUrl = await uploadFile(file, (percent) => {
-      console.log(`上传进度: ${percent}%`)
+    const fileUrl = await uploadFile(file, (p) => {
+      // p 可能含有 percent (MinIO) 或者直接是进度对象 (COS)
+      const percent = Math.round(p.percent || (p.loaded / p.total) * 100)
+      emit('progress', percent)
     })
 
     // 生成预览 URL（图片类型）
     let previewUrl: string | undefined
-    if (file.type.startsWith('image/')) {
+    let mimeType = file.type
+    
+    // 如果浏览器没能识别 mimeType，尝试根据后缀名识别
+    if (!mimeType) {
+      const ext = file.name.split('.').pop()?.toLowerCase()
+      const mimeMap: Record<string, string> = {
+        'png': 'image/png',
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'gif': 'image/gif',
+        'webp': 'image/webp',
+        'pdf': 'application/pdf',
+        'txt': 'text/plain',
+        'mp3': 'audio/mpeg',
+        'wav': 'audio/wav',
+        'm4a': 'audio/mp4'
+      }
+      if (ext && mimeMap[ext]) {
+        mimeType = mimeMap[ext]
+      }
+    }
+
+    if (mimeType.startsWith('image/')) {
       const reader = new FileReader()
       previewUrl = await new Promise<string>((resolve) => {
         reader.onload = () => resolve(reader.result as string)
@@ -48,7 +73,7 @@ async function onChange(e: Event) {
 
     emit('file', {
       name: file.name,
-      mimeType: file.type,
+      mimeType: mimeType || 'application/octet-stream',
       data: fileUrl, // 存储真实的 URL 而不是 base64
       previewUrl
     })

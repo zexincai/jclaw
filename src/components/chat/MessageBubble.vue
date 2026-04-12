@@ -12,8 +12,19 @@
             class="max-w-[160px] max-h-[120px] rounded-lg object-cover border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
             :alt="att.name"
           />
-          <div v-else class="flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-xs text-gray-600">
-            <Paperclip :size="10" />{{ att.name }}
+          <AudioPlayer
+            v-else-if="att.mimeType.startsWith('audio/')"
+            :src="att.data"
+          />
+          <div
+            v-else
+            @click="openFile(att.data)"
+            class="flex items-center gap-1.5 px-3 py-1.5 bg-white/80 hover:bg-white border border-gray-100 rounded-lg text-xs text-gray-700 cursor-pointer transition-all hover:shadow-sm active:scale-95 select-none"
+            title="点击预览"
+          >
+            <Paperclip :size="12" class="text-blue-500" />
+            <span class="max-w-[120px] truncate">{{ att.name }}</span>
+            <ExternalLink :size="10" class="text-gray-400 group-hover:text-blue-500" />
           </div>
         </template>
       </div>
@@ -76,13 +87,14 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { AlertCircle, Paperclip } from 'lucide-vue-next'
+import { AlertCircle, Paperclip, ExternalLink } from 'lucide-vue-next'
 import type { Message, ActionPayload } from '../../stores/chat'
 import { useChatStore } from '../../stores/chat'
 import ThinkingBlock from './ThinkingBlock.vue'
 import ActionCard from './ActionCard.vue'
 import ActionTagButton from './ActionTagButton.vue'
 import MarkdownContent from './MarkdownContent.vue'
+import AudioPlayer from '../ui/AudioPlayer.vue'
 import logoUrl from '../../assets/logo.jpg'
 
 defineProps<{ message: Message }>()
@@ -94,5 +106,9 @@ const previewImage = ref<string | null>(null)
 
 function openImagePreview(url: string) {
   previewImage.value = url
+}
+
+function openFile(url: string) {
+  window.open(url, '_blank')
 }
 </script>

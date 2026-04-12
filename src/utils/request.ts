@@ -23,12 +23,11 @@ async function request<T>(url: string, options: RequestOptions = {}): Promise<Ap
 
   // 处理 URL 参数
   let finalUrl = url
-  if (params) {
-    const searchParams = new URLSearchParams(
-      Object.entries(params).map(([k, v]) => [k, String(v)])
-    )
-    finalUrl = `${url}?${searchParams}`
-  }
+  const allParams = { ...params, operatePort: 2 }
+  const searchParams = new URLSearchParams(
+    Object.entries(allParams).map(([k, v]) => [k, String(v)])
+  )
+  finalUrl = `${url}${url.includes('?') ? '&' : '?'}${searchParams}`
 
   try {
     const token = localStorage.getItem('jclaw_token')
