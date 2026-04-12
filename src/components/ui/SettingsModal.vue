@@ -8,17 +8,12 @@
         <div class="w-44 shrink-0 border-r border-gray-100 p-5 flex flex-col">
           <h2 class="text-base font-semibold text-gray-800 mb-5">设置</h2>
           <nav class="flex flex-col gap-0.5">
-            <button
-              v-for="tab in tabs"
-              :key="tab.id"
-              @click="active = tab.id"
-              :class="[
-                'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors w-full text-left',
-                active === tab.id
-                  ? 'bg-gray-100 text-gray-900 font-medium'
-                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
-              ]"
-            >
+            <button v-for="tab in tabs" :key="tab.id" @click="active = tab.id" :class="[
+              'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors w-full text-left',
+              active === tab.id
+                ? 'bg-gray-100 text-gray-900 font-medium'
+                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+            ]">
               <component :is="tab.icon" :size="14" />
               {{ tab.label }}
             </button>
@@ -31,45 +26,29 @@
           <!-- 通用设置 -->
           <div v-if="active === 'general'" class="flex-1 p-6 overflow-y-auto">
             <h3 class="text-sm font-semibold text-gray-700 mb-5">通用设置</h3>
-            <div class="space-y-1">
-              <div class="flex items-center justify-between py-3 border-b border-gray-100">
-                <div>
-                  <div class="text-sm text-gray-700">界面语言</div>
-                  <div class="text-xs text-gray-400 mt-0.5">当前界面显示语言</div>
+            <div class="space-y-3">
+              <!-- 用户信息卡片 -->
+              <div class="border border-gray-100 rounded-xl overflow-hidden">
+                <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                  <span class="text-sm text-gray-700">头像</span>
+                  <div class="w-10 h-10 rounded-full overflow-hidden bg-gray-100 shrink-0">
+                    <img v-if="userInfo?.portraitUrl" :src="userInfo.portraitUrl" class="w-full h-full object-cover" />
+                    <div v-else class="w-full h-full flex items-center justify-center text-gray-400 text-xs">
+                      <UserCircle :size="28" />
+                    </div>
+                  </div>
                 </div>
-                <select class="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-600 bg-white focus:outline-none focus:ring-1 focus:ring-gray-300">
-                  <option>中文</option>
-                  <option>English</option>
-                </select>
+                <div class="flex items-center justify-between px-5 py-4">
+                  <span class="text-sm text-gray-700">姓名</span>
+                  <span class="text-sm text-gray-500">{{ userInfo?.realName || '—' }}</span>
+                </div>
               </div>
-              <div class="flex items-center justify-between py-3 border-b border-gray-100">
-                <div>
-                  <div class="text-sm text-gray-700">发送快捷键</div>
-                  <div class="text-xs text-gray-400 mt-0.5">按下后发送消息</div>
-                </div>
-                <select class="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-600 bg-white focus:outline-none focus:ring-1 focus:ring-gray-300">
-                  <option>Enter</option>
-                  <option>Ctrl + Enter</option>
-                </select>
-              </div>
-              <div class="flex items-center justify-between py-3">
-                <div>
-                  <div class="text-sm text-gray-700">自动展开思考过程</div>
-                  <div class="text-xs text-gray-400 mt-0.5">收到消息时自动展开 Thinking</div>
-                </div>
-                <button
-                  @click="autoExpandThinking = !autoExpandThinking"
-                  :class="[
-                    'w-9 h-5 rounded-full transition-colors relative shrink-0',
-                    autoExpandThinking ? 'bg-teal-500' : 'bg-gray-200'
-                  ]"
-                >
-                  <span
-                    :class="[
-                      'absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform',
-                      autoExpandThinking ? 'translate-x-4' : 'translate-x-0.5'
-                    ]"
-                  />
+
+              <!-- 退出登录 -->
+              <div class="border border-gray-100 rounded-xl px-5 py-4">
+                <button @click="handleLogout"
+                  class="w-full px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-sm font-medium transition-colors">
+                  退出登录
                 </button>
               </div>
             </div>
@@ -81,19 +60,23 @@
             <div v-if="store.usage" class="grid grid-cols-2 gap-3">
               <div class="bg-gray-50 rounded-xl p-4">
                 <div class="text-xs text-gray-400 mb-1.5">输入 Token</div>
-                <div class="text-2xl font-semibold text-gray-800 tracking-tight">{{ fmtNum(store.usage.inputTokens) }}</div>
+                <div class="text-2xl font-semibold text-gray-800 tracking-tight">{{ fmtNum(store.usage.inputTokens) }}
+                </div>
               </div>
               <div class="bg-gray-50 rounded-xl p-4">
                 <div class="text-xs text-gray-400 mb-1.5">输出 Token</div>
-                <div class="text-2xl font-semibold text-gray-800 tracking-tight">{{ fmtNum(store.usage.outputTokens) }}</div>
+                <div class="text-2xl font-semibold text-gray-800 tracking-tight">{{ fmtNum(store.usage.outputTokens) }}
+                </div>
               </div>
               <div class="bg-gray-50 rounded-xl p-4">
                 <div class="text-xs text-gray-400 mb-1.5">累计费用</div>
-                <div class="text-2xl font-semibold text-gray-800 tracking-tight">${{ (store.usage.totalCostUsd ?? 0).toFixed(4) }}</div>
+                <div class="text-2xl font-semibold text-gray-800 tracking-tight">${{ (store.usage.totalCostUsd ??
+                  0).toFixed(4) }}</div>
               </div>
               <div class="bg-gray-50 rounded-xl p-4">
                 <div class="text-xs text-gray-400 mb-1.5">消息总数</div>
-                <div class="text-2xl font-semibold text-gray-800 tracking-tight">{{ fmtNum(store.usage.totalMessages) }}</div>
+                <div class="text-2xl font-semibold text-gray-800 tracking-tight">{{ fmtNum(store.usage.totalMessages) }}
+                </div>
               </div>
             </div>
             <div v-else class="flex flex-col items-center justify-center h-48 text-gray-300 gap-2">
@@ -118,9 +101,9 @@
                 <span class="flex-1" />
                 <button
                   class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded-lg transition-colors"
-                  @click="checkUpdate"
-                >检查更新</button>
-                <button class="px-3 py-1.5 border border-gray-200 text-gray-600 text-xs rounded-lg hover:bg-gray-50 transition-colors">版本日志</button>
+                  @click="checkUpdate">检查更新</button>
+                <button
+                  class="px-3 py-1.5 border border-gray-200 text-gray-600 text-xs rounded-lg hover:bg-gray-50 transition-colors">版本日志</button>
               </div>
             </div>
             <div class="py-4 text-center border-t border-gray-100">
@@ -137,21 +120,31 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { Settings, BarChart2, Info } from 'lucide-vue-next'
+import { ref, onMounted } from 'vue'
+import { Settings, BarChart2, Info, UserCircle } from 'lucide-vue-next'
 import { useChatStore } from '../../stores/chat'
+import { useAuth } from '../../composables/useAuth'
+import { getPersonalUserInfo, type EngAgentUserVo } from '../../api/agent'
 
 const emit = defineEmits<{ close: [] }>()
 const store = useChatStore()
+const { logout } = useAuth()
 
 const tabs = [
   { id: 'general', label: '通用设置', icon: Settings },
-  { id: 'usage',   label: '用量统计', icon: BarChart2 },
-  { id: 'about',   label: '关于我们', icon: Info },
+  { id: 'usage', label: '用量统计', icon: BarChart2 },
+  { id: 'about', label: '关于我们', icon: Info },
 ]
 
 const active = ref('general')
-const autoExpandThinking = ref(false)
+const userInfo = ref<EngAgentUserVo | null>(null)
+
+onMounted(async () => {
+  try {
+    const res = await getPersonalUserInfo()
+    userInfo.value = (res as any).data ?? null
+  } catch { /* ignore */ }
+})
 
 function fmtNum(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`
@@ -161,5 +154,10 @@ function fmtNum(n: number) {
 
 function checkUpdate() {
   alert('当前已是最新版本 v1.0.0')
+}
+
+function handleLogout() {
+  logout()
+  emit('close')
 }
 </script>

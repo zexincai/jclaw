@@ -69,6 +69,7 @@ export const useChatStore = defineStore("chat", () => {
   const wsMaxRetries = ref(false); // true = 超出重试上限
   const agentRunning = ref(false);
   const usage = ref<UsageStats | null>(null);
+  const switchingRole = ref(false); // 切换角色加载中
 
   function activeProject() {
     return projects.value.find((p) => p.id === activeProjectId.value) ?? null;
@@ -97,6 +98,7 @@ export const useChatStore = defineStore("chat", () => {
     wsMaxRetries,
     agentRunning,
     usage,
+    switchingRole,
     activeProject,
     activeSessionMessages,
     sessionsByProject,

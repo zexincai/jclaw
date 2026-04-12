@@ -105,18 +105,6 @@ function stripAllActionTags(content: string): string {
     .trim()
 }
 
-/** 剥离所有隐藏标签及平台 action 标签，用于历史消息清洗 */
-function stripHiddenTags(content: string): string {
-  return content
-    .replace(/<system\s*>[\s\S]*?<\/system\s*>\s*/gi, '')   // <system> 块
-    .replace(/<jclaw-ctx[^>]*>[\s\S]*?<\/jclaw-ctx>\s*/gi, '') // 旧格式兼容
-    .replace(/<jclaw-ctx[^/]*\/>\s*/gi, '')                    // 自闭合旧格式
-    .replace(/<pcAction>[\s\S]*?<\/pcAction>/gi, '')
-    .replace(/<appAction>[\s\S]*?<\/appAction>/gi, '')
-    .replace(/<deskAction>[\s\S]*?<\/deskAction>/gi, '')
-    .trim()
-}
-
 /** 从 OpenClaw message 对象中提取纯文本（content 可能是 string 或 block 数组） */
 function extractText(message: unknown): string {
   if (!message || typeof message !== 'object') return ''
@@ -281,7 +269,7 @@ export function useChat() {
             fkChatId: currentChatId,
             chatContent: text,
             chatObject: '1',
-          }).catch(() => {})
+          }).catch(() => { })
         }
 
         streamingId = null
@@ -424,14 +412,16 @@ export function useChat() {
     streamingThinking = ''
 
     const session = store.sessions.find(s => s.id === store.activeSessionId)
-    if (session?.title === '新对话' && text) {
-      session.title = text.slice(0, 20)
+    const hasContent = text || attachments.length > 0
+    if (session?.title === '新对话' && hasContent) {
+      session.title = text ? text.slice(0, 20) : '语音消息'
     }
 
     // 确保后端会话存在（首次发消息时创建）
-    if (session && !session.backendId && text) {
+    if (session && !session.backendId && hasContent) {
       try {
-        const res = await addChat({ chatTitle: text.slice(0, 50) })
+        const title = text ? text.slice(0, 50) : '语音消息'
+        const res = await addChat({ chatTitle: title })
         const pkId = (res as any).data
         if (pkId) session.backendId = pkId
       } catch { /* 接口失败时继续本地发送 */ }
@@ -440,22 +430,62 @@ export function useChat() {
     currentChatId = session?.backendId ?? null
 
     // 保存用户消息到后端（不依赖 ws.request 结果，先行记录）
-    if (currentChatId && text) {
+    if (currentChatId && hasContent) {
       addChatRecordData({
         fkChatId: currentChatId,
-        chatContent: text,
+        chatContent: text || '',
         chatObject: '0',
         ...(attachments.length ? {
-          chatRecordFileList: attachments.map(a => ({ fileName: a.name, fileType: a.mimeType }))
+          chatRecordFileList: attachments.map(a => {
+            // 根据 mimeType 判断文件类型：0-图片，1-文件，2-音频
+            let fileType = 1 // 默认为文件
+            if (a.mimeType.startsWith('image/')) {
+              fileType = 0
+            } else if (a.mimeType.startsWith('audio/')) {
+              fileType = 2
+            }
+
+            return {
+              fileName: a.name,
+              fileType: String(fileType),
+              fileUrl: a.data // data 字段现在存储的是上传后的真实 URL
+            }
+          })
         } : {}),
-      }).catch(() => {})
+      }).catch(() => { })
     }
 
     try {
       const auth = useAuth()
       const roleToken = auth.token.value
       const systemPrompt = auth.currentRole.value?.userRolePrompt
-      const messageWithCtx = buildMessageWithCtx(text, roleToken, systemPrompt)
+
+      // 将图片、音频及其他文件（如 PDF）URL 以 markdown 格式插入到发送给 AI 的文本中
+      let textWithImages = text || ''
+      if (attachments.length > 0) {
+        console.log('Processing attachments...', attachments)
+        const imageMarkdown = attachments
+          .filter(a => a.mimeType.startsWith('image/'))
+          .map(a => `![${a.name}](${a.data})\n[🖼️ 图片: ${a.name}](${a.data})`)
+          .join('\n')
+
+        const audioMarkdown = attachments
+          .filter(a => a.mimeType.startsWith('audio/'))
+          .map(a => `[🎵 语音消息，URL: ${a.data}](${a.data})`)
+          .join('\n')
+
+        const fileMarkdown = attachments
+          .filter(a => !a.mimeType.startsWith('image/') && !a.mimeType.startsWith('audio/'))
+          .map(a => `[📄 文件: ${a.name}](${a.data})`)
+          .join('\n')
+
+        const mediaMarkdown = [imageMarkdown, audioMarkdown, fileMarkdown].filter(Boolean).join('\n')
+        if (mediaMarkdown) {
+          textWithImages = mediaMarkdown + (text ? '\n' + text : '')
+        }
+      }
+
+      const messageWithCtx = buildMessageWithCtx(textWithImages, roleToken, systemPrompt)
       const wsAttachments = attachments.map(a => ({ name: a.name, mimeType: a.mimeType, data: a.data }))
       // 同步 currentSessionKey，确保 chat 事件过滤器能接受服务端响应
       const chatSessionKey = project.channelId || currentSessionKey
@@ -480,39 +510,45 @@ export function useChat() {
     }
   }
 
-  async function loadHistory(sessionKey?: string) {
-    const key = sessionKey || currentSessionKey
-    if (!key) return
-    try {
-      const res = await ws.request('chat.history', { sessionKey: key, limit: 200 }) as {
-        ok: boolean
-        payload?: { messages: Array<{ role: string; content: unknown; id: string; createdAt: string }> }
-      }
-      if (!res.ok || !res.payload?.messages) return
-      const sessionId = store.activeSessionId
-      const msgs: Message[] = res.payload.messages
-        .filter(m => m.role === 'user' || m.role === 'assistant')
-        .map(m => {
-          const rawContent = extractText(m)
-          const platformAction = m.role === 'assistant' ? extractPlatformAction(rawContent) : undefined
-          const cleaned = stripHiddenTags(stripThinkingTags(rawContent))
-          return {
-            id: m.id, sessionId, role: m.role as 'user' | 'assistant',
-            content: cleaned, status: 'done' as const, createdAt: m.createdAt,
-            ...(platformAction ? { platformAction } : {}),
-          }
-        })
-      store.messages = store.messages.filter(m => m.sessionId !== sessionId)
-        .concat(msgs.filter(m => m.content.trim() !== '' || m.platformAction))
-      if (msgs.length > 0) {
-        const lastUserMsg = [...msgs].reverse().find(m => m.role === 'user')
-        if (lastUserMsg) {
-          const session = store.sessions.find(s => s.id === sessionId)
-          if (session && session.title === '新对话') session.title = lastUserMsg.content.slice(0, 20)
-        }
-      }
-    } catch { /* ignore */ }
-  }
+  /**
+ * 加载指定会话的聊天历史记录
+ * @param {string} [sessionKey] - 会话键，如果不提供则使用当前会话键
+ * @returns {Promise<void>} 无返回值
+ * @throws {Error} WebSocket 请求失败时抛出异常（内部已忽略）
+ */
+  // async function loadHistory(sessionKey?: string) {
+  //   const key = sessionKey || currentSessionKey
+  //   if (!key) return
+  //   try {
+  //     const res = await ws.request('chat.history', { sessionKey: key, limit: 200 }) as {
+  //       ok: boolean
+  //       payload?: { messages: Array<{ role: string; content: unknown; id: string; createdAt: string }> }
+  //     }
+  //     if (!res.ok || !res.payload?.messages) return
+  //     const sessionId = store.activeSessionId
+  //     const msgs: Message[] = res.payload.messages
+  //       .filter(m => m.role === 'user' || m.role === 'assistant')
+  //       .map(m => {
+  //         const rawContent = extractText(m)
+  //         const platformAction = m.role === 'assistant' ? extractPlatformAction(rawContent) : undefined
+  //         const cleaned = stripHiddenTags(stripThinkingTags(rawContent))
+  //         return {
+  //           id: m.id, sessionId, role: m.role as 'user' | 'assistant',
+  //           content: cleaned, status: 'done' as const, createdAt: m.createdAt,
+  //           ...(platformAction ? { platformAction } : {}),
+  //         }
+  //       })
+  //     store.messages = store.messages.filter(m => m.sessionId !== sessionId)
+  //       .concat(msgs.filter(m => m.content.trim() !== '' || m.platformAction))
+  //     if (msgs.length > 0) {
+  //       const lastUserMsg = [...msgs].reverse().find(m => m.role === 'user')
+  //       if (lastUserMsg) {
+  //         const session = store.sessions.find(s => s.id === sessionId)
+  //         if (session && session.title === '新对话') session.title = lastUserMsg.content.slice(0, 20)
+  //       }
+  //     }
+  //   } catch { /* ignore */ }
+  // }
 
   async function loadSession(sessionId: string) {
     store.activeSessionId = sessionId
@@ -523,15 +559,34 @@ export function useChat() {
       const data = (res as any).data
       const records: any[] = Array.isArray(data?.records) ? data.records : (Array.isArray(data) ? data : [])
       const msgs: Message[] = records
-        .map(r => ({
-          id: String(r.pkId),
-          sessionId,
-          role: (r.chatObject === '0' ? 'user' : 'assistant') as 'user' | 'assistant',
-          content: r.chatContent || '',
-          status: 'done' as const,
-          createdAt: r.createTime || new Date().toISOString(),
-        }))
-        .filter(m => m.content.trim())
+        .map(r => {
+          // 转换后端的 chatRecordFileList 为前端的 attachments 格式
+          let attachments: Attachment[] | undefined
+          if (r.chatRecordFileList && Array.isArray(r.chatRecordFileList) && r.chatRecordFileList.length > 0) {
+            attachments = r.chatRecordFileList.map((file: any) => {
+              // fileType 可能是数字或字符串，统一转换为字符串比较
+              const fileType = String(file.fileType)
+              return {
+                name: file.fileName || 'unknown',
+                mimeType: fileType === '0' ? 'image/png' : (fileType === '2' ? 'audio/mp3' : 'application/octet-stream'),
+                data: file.fileUrl || '',
+                previewUrl: fileType === '0' ? file.fileUrl : undefined,
+              }
+            })
+          }
+
+          return {
+            id: String(r.pkId),
+            sessionId,
+            role: (String(r.chatObject) === '0' ? 'user' : 'assistant') as 'user' | 'assistant',
+            content: r.chatContent || '',
+            status: 'done' as const,
+            createdAt: r.createTime || new Date().toISOString(),
+            ...(attachments ? { attachments } : {}),
+          }
+        })
+        .filter(m => m.content.trim() || m.attachments)
+        .reverse()
       store.messages = store.messages.filter(m => m.sessionId !== sessionId).concat(msgs)
     } catch { /* ignore */ }
   }

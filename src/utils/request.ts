@@ -8,6 +8,7 @@ config.baseUrl = 'http://192.168.2.103:9199'      //测AI-103 测试环境
 //config.baseUrl = "https://staging.jianbiyou.com/gateway"; //预发布环境接口
 // config.baseUrl = "https://pre.jianbiyou.com/gateway"; //影子环境接口
 // config.baseUrl = "https://cos.jianbiyou.com/gateway"; //生产环境接口
+let isLoggingOut = false
 
 // 统一响应结构
 export interface ApiResponse<T = unknown> {
@@ -29,12 +30,11 @@ async function request<T>(url: string, options: RequestOptions = {}): Promise<Ap
 
   // 处理 URL 参数
   let finalUrl = url
-  if (params) {
-    const searchParams = new URLSearchParams(
-      Object.entries(params).map(([k, v]) => [k, String(v)])
-    )
-    finalUrl = `${url}?${searchParams}`
-  }
+  const allParams = { ...params, operatePort: 2 }
+  const searchParams = new URLSearchParams(
+    Object.entries(allParams).map(([k, v]) => [k, String(v)])
+  )
+  finalUrl = `${url}${url.includes('?') ? '&' : '?'}${searchParams}`
 
   try {
     const token = localStorage.getItem('jclaw_token')
@@ -50,6 +50,15 @@ async function request<T>(url: string, options: RequestOptions = {}): Promise<Ap
     })
 
     const json: ApiResponse<T> = await res.json()
+
+    // 登录过期处理（防抖）
+    if (json.code === 503 && !isLoggingOut) {
+      isLoggingOut = true
+      localStorage.removeItem('jclaw_token')
+      localStorage.removeItem('jclaw_auth')
+      window.location.reload()
+      throw new Error('登录已过期，请重新登录')
+    }
 
     // 业务错误处理
     if (json.code !== 200) {
