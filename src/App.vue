@@ -8,11 +8,15 @@
         <span class="text-sm font-semibold text-gray-700">JClaw</span>
       </div>
       <button @click="chat.newSession()"
-        class="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+        class="ml-40 w-7 h-7 flex items-center justify-center text-green-600 border border-gray-200 hover:border-green-500 hover:bg-green-50 rounded transition-colors"
         title="新对话">
-        <Plus :size="14" />
+        <Plus :size="16" />
       </button>
       <div class="flex-1" />
+      <!-- iframe 通信测试按钮 -->
+      <button @click="testIframe"
+        class="px-2.5 py-1 text-xs border border-gray-200 rounded text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors font-mono"
+        title="测试 iframe 通信">测试通信</button>
       <!-- WS 状态指示 -->
       <div :class="[
         'w-2 h-2 rounded-full shrink-0 transition-colors',
@@ -26,7 +30,7 @@
       <ProjectSwitcher />
       <SidePanel v-show="sidePanelOpen" class="w-56 shrink-0" />
       <button @click="sidePanelOpen = !sidePanelOpen"
-        class="w-4 shrink-0 flex items-center justify-center bg-white border-r border-gray-200 hover:bg-gray-50 text-gray-300 hover:text-gray-500 transition-colors"
+        class="w-4 shrink-0 flex items-center justify-center bg-gray-50 border-r border-gray-200 hover:bg-gray-50 text-gray-00 hover:text-gray-500 transition-colors"
         :title="sidePanelOpen ? '收起侧栏' : '展开侧栏'">
         <ChevronsLeft v-if="sidePanelOpen" :size="12" />
         <ChevronsRight v-else :size="12" />
@@ -37,7 +41,7 @@
         title="收起面板">
         <ChevronsRight :size="12" />
       </button>
-      <BusinessPanel v-show="bridge.isVisible.value" class="w-[860px] shrink-0" />
+      <BusinessPanel v-show="bridge.isVisible.value" class="w-[1260px] shrink-0" />
     </div>
 
     <!-- 配对引导弹窗 -->
@@ -74,6 +78,13 @@
         <div class="h-1.5 bg-gradient-to-r from-red-400 via-red-600 to-red-400" />
       </div>
     </div>
+
+    <!-- 实名认证弹窗 (强制显示) -->
+    <RealNameAuthModal v-if="auth.needsCertification.value" :telephone="auth.currentRole.value?.telephone || ''"
+      @success="onAuthSuccess" />
+
+    <!-- 切换角色加载中 -->
+    <GlobalLoading :visible="store.switchingRole" message="加载中" />
   </div>
 </template>
 
@@ -85,6 +96,8 @@ import ProjectSwitcher from './components/layout/ProjectSwitcher.vue'
 import SidePanel from './components/layout/SidePanel.vue'
 import ChatArea from './components/layout/ChatArea.vue'
 import BusinessPanel from './components/layout/BusinessPanel.vue'
+import RealNameAuthModal from './components/modals/RealNameAuthModal.vue'
+import GlobalLoading from './components/GlobalLoading.vue'
 import LoginView from './views/LoginView.vue'
 import { useWebSocket } from './composables/useWebSocket'
 import { useUsage } from './composables/useUsage'
@@ -93,7 +106,6 @@ import { useChat } from './composables/useChat'
 import { useIframeBridge } from './composables/useIframeBridge'
 import { useAuth } from './composables/useAuth'
 import { useChatStore } from './stores/chat'
-
 const store = useChatStore()
 const ws = useWebSocket()
 const { refresh: refreshUsage } = useUsage()
@@ -104,6 +116,11 @@ const auth = useAuth()
 
 const sidePanelOpen = ref(true)
 const pairingModalVisible = ref(false)
+
+function onAuthSuccess() {
+  auth.updateCertificationStatus(true)
+}
+
 watch(bridge.isVisible, v => {
   if (v) {
     sidePanelOpen.value = false
@@ -114,7 +131,10 @@ watch(bridge.isVisible, v => {
 
 watch(ws.status, s => {
   store.wsStatus = s
-  if (s === 'connected') store.wsMaxRetries = false
+  if (s === 'connected') {
+    store.wsMaxRetries = false
+    pairingModalVisible.value = false
+  }
 })
 
 ws.on('connected', async () => {
@@ -147,6 +167,19 @@ ws.on('chat', (p: unknown) => {
 ws.on('not-paired', () => {
   pairingModalVisible.value = true
 })
+
+function testIframe() {
+  const testMsg = { type: 'JCLAW_SET_TOKEN', access_token: '7c42142c-170f-484a-aa4e-bed5a1944341', timestamp: Date.now(), message: 'hello from JClaw' }
+  const iframe = bridge.iframeRef.value
+  if (!iframe?.contentWindow) {
+    // alert('iframe 未加载，无法测试通信')
+    return
+  }
+  const origin = (import.meta.env.VITE_BUSINESS_SYSTEM_ORIGIN as string | undefined) || '*'
+  iframe.contentWindow.postMessage(testMsg, origin)
+  bridge.isVisible.value = true
+  // alert(`已发送测试消息：\n${JSON.stringify(testMsg, null, 2)}\n\n请在 iframe 页面的控制台查看是否收到消息。`)
+}
 
 function goToPairing() {
   window.open('http://127.0.0.1:18789/nodes', '_blank')

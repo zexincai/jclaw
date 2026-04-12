@@ -9,13 +9,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "cos-js-sdk-v5": "^1.10.1",
     "lucide-vue-next": "^1.0.0",
     "marked": "^18.0.0",
     "pinia": "^3.0.4",
+    "qrcodejs2-fixes": "^0.0.2",
     "vue": "^3.5.32"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"]
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.19",

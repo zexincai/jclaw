@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue'
-import { aiSysLoginPc } from '../api/auth'
+import { aiSysLoginPc, switchLogin } from '../api/auth'
 export interface Role {
   userId: string
   loginName: string
@@ -15,6 +15,7 @@ export interface Role {
     mobile: string
     checkStatus: number
   }
+  [key: string]: any
 }
 
 const AUTH_STORAGE_KEY = 'jclaw_auth'
@@ -32,13 +33,21 @@ function restore() {
   try {
     const rawAuth = localStorage.getItem(AUTH_STORAGE_KEY)
     token.value = localStorage.getItem(TOKEN_STORAGE_KEY) || ''
-    
+
     if (!rawAuth) return
     const data: { roles: Role[]; currentRoleId: string } = JSON.parse(rawAuth)
     if (data.roles?.length) {
       roles.value = data.roles
       currentRoleId.value = data.currentRoleId || data.roles[0].userId
       isLoggedIn.value = !!token.value
+
+      // 如果当前已登录但缺失 last_phone，则根据当前角色恢复它以保证 deviceId 稳定性
+      if (isLoggedIn.value && !localStorage.getItem('jclaw_last_phone')) {
+        const role = data.roles.find(r => r.userId === currentRoleId.value) || data.roles[0]
+        if (role.telephone) {
+          localStorage.setItem('jclaw_last_phone', role.telephone)
+        }
+      }
     }
   } catch { /* ignore */ }
 }
@@ -58,9 +67,9 @@ export function useAuth() {
         throw new Error('用户名或密码错误（mock: admin / 123456）')
       }
       const userList: Role[] = [
-        { userId: 'role_pm', loginName: '项目经理', telephone: '18000000001', isMaster: 1, pastStatus: 1, orgType: 1, orgTypeName: '项目部', orgName: '演示项目部', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix', userRolePrompt: '你是建筑工程行业高级项目经理，精通项目进度管控、成本管理与质量安全管理。用专业、简洁的语言回答问题，不需要说明自己的身份。' },
-        { userId: 'role_cost', loginName: '成本主管', telephone: '18000000002', isMaster: 0, pastStatus: 1, orgType: 1, orgTypeName: '项目部', orgName: '演示项目部', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Aneka', userRolePrompt: '你是建筑工程行业成本主管，擅长工程量清单、合同管理与造价分析。用专业、简洁的语言回答问题，不需要说明自己的身份。' },
-        { userId: 'role_admin', loginName: '系统管理员', telephone: '18000000003', isMaster: 1, pastStatus: 1, orgType: 1, orgTypeName: '运营单位', orgName: '建网科技', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Admin', userRolePrompt: '你是建筑工程信息化系统管理员，负责系统配置与用户权限管理。' },
+        { userId: 'role_pm', loginName: '项目经理', telephone: '18000000001', isMaster: 1, pastStatus: 1, orgType: 1, orgTypeName: '项目部', orgName: '演示项目部', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix', userRolePrompt: '你是建筑工程行业高级项目经理，精通项目进度管控、成本管理与质量安全管理。用专业、简洁的语言回答问题，不需要说明自己的身份。', authStatusVo: { mobile: '18000000001', checkStatus: 2 } },
+        { userId: 'role_cost', loginName: '成本主管', telephone: '18000000002', isMaster: 0, pastStatus: 1, orgType: 1, orgTypeName: '项目部', orgName: '演示项目部', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Aneka', userRolePrompt: '你是建筑工程行业成本主管，擅长工程量清单、合同管理与造价分析。用专业、简洁的语言回答问题，不需要说明自己的身份。', authStatusVo: { mobile: '18000000002', checkStatus: 2 } },
+        { userId: 'role_admin', loginName: '系统管理员', telephone: '18000000003', isMaster: 1, pastStatus: 1, orgType: 1, orgTypeName: '运营单位', orgName: '建网科技', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Admin', userRolePrompt: '你是建筑工程信息化系统管理员，负责系统配置与用户权限管理。', authStatusVo: { mobile: '18000000003', checkStatus: 2 } },
       ]
       const accessToken = 'mock_access_token'
       roles.value = userList
@@ -85,7 +94,7 @@ export function useAuth() {
     const data = json.data ?? json
     const accessToken = data.access_token
     const userList: Role[] = data.userList ?? []
-    
+
     if (!accessToken) throw new Error('未获取到登录令牌')
     if (!userList.length) throw new Error('未获取到账户信息')
 
@@ -104,6 +113,24 @@ export function useAuth() {
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(stored))
   }
 
+  async function switchRole(roleId: string) {
+    const role = roles.value.find(r => r.userId === roleId)
+
+    if (!role) {
+      throw new Error(`角色 ${roleId} 不存在`)
+    }
+    const phoneNumber = localStorage.getItem('jclaw_last_phone') || roles.value[0]?.telephone || ''
+    console.log('switching role:', role)
+    const res = (await switchLogin({ phoneNumber, pkId: role.userId as any, sourceType: 3 })) as any
+    const data = res.data ?? res
+    const newToken = data.access_token
+    if (newToken) {
+      token.value = newToken
+      localStorage.setItem(TOKEN_STORAGE_KEY, newToken)
+    }
+    setRole(roleId)
+  }
+
   function logout() {
     roles.value = []
     currentRoleId.value = ''
@@ -117,7 +144,7 @@ export function useAuth() {
   async function loginByMobile(phoneNumber: string, code: string, uuid: string) {
     // 立即设置上一次手机号，以便请求拦截器能生成正确的 deterministic deviceId
     localStorage.setItem('jclaw_last_phone', phoneNumber)
-    
+
     const res = (await aiSysLoginPc({ phoneNumber, code, forceType: 1, uuid, sourceType: 3, operateSource: 2 })) as any
     const data = res.data ?? res
     const accessToken = data.access_token
@@ -136,5 +163,38 @@ export function useAuth() {
     localStorage.setItem('jclaw_last_phone', phoneNumber)
   }
 
-  return { isLoggedIn, roles, currentRole, token, login, loginByMobile, setRole, logout }
+  const needsCertification = computed(() => {
+    if (!currentRole.value) return false
+    const status = currentRole.value.authStatusVo?.checkStatus
+    // 0: 未认证, 3: 需重新授权/过期 (旧系统逻辑)
+    // 实际上 checkStatus 如果是 1 (核身) 也可能需要处理，但根据 index.vue 主要处理 0 和 3
+    return status === 0 || status === 3
+  })
+
+  function updateCertificationStatus(success: boolean) {
+    if (success && currentRole.value) {
+      if (!currentRole.value.authStatusVo) {
+        currentRole.value.authStatusVo = { mobile: currentRole.value.telephone, checkStatus: 2 }
+      } else {
+        currentRole.value.authStatusVo.checkStatus = 2 // 2 通常表示认证成功或无需认证
+      }
+      // 同步到本地存储
+      const stored = { roles: roles.value, currentRoleId: currentRoleId.value }
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(stored))
+    }
+  }
+
+  return { 
+    isLoggedIn, 
+    roles, 
+    currentRole, 
+    token, 
+    needsCertification,
+    login, 
+    loginByMobile, 
+    setRole, 
+    switchRole, 
+    logout,
+    updateCertificationStatus
+  }
 }

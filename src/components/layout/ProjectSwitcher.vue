@@ -1,9 +1,9 @@
 <template>
   <div
-    class="flex flex-col items-center w-[72px] bg-white border-r border-gray-100 pt-6 pb-4 shrink-0 h-full overflow-hidden">
-    <div class="flex-1 w-full overflow-y-auto overflow-x-hidden scrollbar-none flex flex-col items-center gap-4">
+    class="flex flex-col items-center w-[76px] bg-white border-r border-gray-100 pt-6 pb-4 shrink-0 h-full overflow-hidden">
+    <div class="flex-1 w-full overflow-y-auto scrollbar-none flex flex-col items-center gap-5 py-2">
       <div v-for="(project, idx) in store.projects" :key="project.id"
-        class="relative flex items-center justify-center w-full px-2">
+        class="relative flex items-center justify-center w-full px-3">
         <!-- 活动指示条 -->
         <div v-if="store.activeProjectId === project.id"
           class="absolute left-0 w-1.5 h-8 bg-red-500 rounded-r-full transition-all duration-300" />
@@ -54,17 +54,23 @@ function initial(name: string) {
 
 async function handleSwitch(projectId: string) {
   if (store.activeProjectId === projectId) return
-  // 切换前清空旧用户的消息和会话状态，避免显示上个用户的聊天记录
-  store.messages = []
-  store.sessions = []
-  store.activeSessionId = ''
-  setActive(projectId)
-  auth.setRole(projectId)
-  await chat.loadSessions()
-  if (!store.activeSessionId) {
-    chat.newSession()
-  } else {
-    await chat.loadSession(store.activeSessionId)
+
+  store.switchingRole = true
+  try {
+    // 切换前清空旧用户的消息和会话状态，避免显示上个用户的聊天记录
+    store.messages = []
+    store.sessions = []
+    store.activeSessionId = ''
+    setActive(projectId)
+    await auth.switchRole(projectId)
+    await chat.loadSessions()
+    if (!store.activeSessionId) {
+      chat.newSession()
+    } else {
+      await chat.loadSession(store.activeSessionId)
+    }
+  } finally {
+    store.switchingRole = false
   }
 }
 </script>

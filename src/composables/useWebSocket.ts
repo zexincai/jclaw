@@ -3,13 +3,13 @@
  * 所有组件调用 useWebSocket() 返回同一个对象
  */
 import { ref } from "vue";
+import { getDeviceIdentity, base64UrlEncode } from "../utils/device";
 
 type WsStatus = "connecting" | "connected" | "disconnected";
 type EventHandler = (payload: unknown) => void;
 
 const RETRY_DELAYS = [1000, 2000, 4000, 8000, 16000, 30000];
 const MAX_RETRIES = 10;
-const DEVICE_KEY_STORAGE = "jclaw_device_keypair_v2";
 
 // ── 模块级单例状态 ──────────────────────────────────────────────
 const status = ref<WsStatus>("disconnected");
@@ -25,105 +25,8 @@ const pendingRequests = new Map<string, (res: unknown) => void>();
 // ────────────────────────────────────────────────────────────────
 
 // ── 设备身份（Ed25519） ──────────────────────────────────────────
-interface StoredKeyPair {
-  privateKeyJwk: JsonWebKey;
-  publicKeyBase64: string;
-  deviceId: string;
-}
-
-let deviceKeyCache: {
-  privateKey: CryptoKey;
-  publicKeyBase64: string;
-  deviceId: string;
-} | null = null;
-
-/**
- * 获取设备密钥对与 ID
- * @param phoneNumber 如果提供手机号，则使用手机号绑定的密钥；否则返回默认/游客密钥。
- */
-async function getDeviceKey(phoneNumber?: string | null) {
-  // 确定存储键
-  let storageKey = DEVICE_KEY_STORAGE;
-  if (phoneNumber) {
-    storageKey = `${DEVICE_KEY_STORAGE}_${phoneNumber}`;
-  } else {
-    // 尝试获取上一次登录的手机号
-    const lastPhone = localStorage.getItem('jclaw_last_phone');
-    if (lastPhone) {
-      storageKey = `${DEVICE_KEY_STORAGE}_${lastPhone}`;
-    }
-  }
-
-  // 内存缓存检查 (仅限 active 场景)
-  if (deviceKeyCache && !phoneNumber) return deviceKeyCache;
-
-  const stored = localStorage.getItem(storageKey);
-  if (stored) {
-    try {
-      const { privateKeyJwk, publicKeyBase64, deviceId } = JSON.parse(
-        stored,
-      ) as StoredKeyPair;
-      const privateKey = await crypto.subtle.importKey(
-        "jwk",
-        privateKeyJwk,
-        { name: "Ed25519" },
-        false,
-        ["sign"],
-      );
-      const result = { privateKey, publicKeyBase64, deviceId };
-      if (!phoneNumber) deviceKeyCache = result;
-      return result;
-    } catch {
-      /* regenerate below */
-    }
-  }
-
-  // 生成新密钥
-  const keyPair = await crypto.subtle.generateKey({ name: "Ed25519" }, true, [
-    "sign",
-    "verify",
-  ]);
-  const pubRaw = await crypto.subtle.exportKey("raw", keyPair.publicKey);
-  const publicKeyBase64 = base64UrlEncode(new Uint8Array(pubRaw));
-
-  // 如果有手机号，使用确定的 hash 作为 ID 增加一致性
-  let deviceId: string;
-  if (phoneNumber) {
-    const msgBuffer = new TextEncoder().encode(`jclaw_device_v2_${phoneNumber}`);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-    deviceId = Array.from(new Uint8Array(hashBuffer))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
-  } else {
-    const hashBuf = await crypto.subtle.digest("SHA-256", pubRaw);
-    deviceId = Array.from(new Uint8Array(hashBuf))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-  }
-
-  const privateKeyJwk = await crypto.subtle.exportKey(
-    "jwk",
-    keyPair.privateKey,
-  );
-  const toStore: StoredKeyPair = { privateKeyJwk, publicKeyBase64, deviceId };
-  localStorage.setItem(storageKey, JSON.stringify(toStore));
-
-  const result = {
-    privateKey: keyPair.privateKey,
-    publicKeyBase64,
-    deviceId,
-  };
-  if (!phoneNumber) deviceKeyCache = result;
-  return result;
-}
-
-function base64UrlEncode(data: Uint8Array): string {
-  const base64 = btoa(String.fromCharCode(...data));
-  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
-}
-
 async function signPayload(payload: string): Promise<string> {
-  const { privateKey } = await getDeviceKey();
+  const { privateKey } = await getDeviceIdentity();
   const sig = await crypto.subtle.sign(
     "Ed25519",
     privateKey,
@@ -150,7 +53,8 @@ function send(frame: object) {
 }
 
 async function sendConnectFrame(nonce: string = "") {
-  const device = await getDeviceKey();
+  // 使用中央身份工具获取 deviceId 和 publicKey
+  const device = await getDeviceIdentity();
   const signedAt = Date.now();
   const SCOPES = [
     "operator.admin",

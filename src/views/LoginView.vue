@@ -67,7 +67,8 @@
           <div class="field">
             <label>验证码</label>
             <div class="flex gap-3">
-              <input v-model="smsCode" type="text" placeholder="输入验证码" :disabled="loading" class="flex-1" />
+              <input v-model="smsCode" maxlength="4" type="text" placeholder="输入验证码" :disabled="loading"
+                class="flex-1" />
               <button type="button" class="code-btn" :disabled="!!countdown || !phoneNumber || loading"
                 @click="handleGetCode">
                 {{ countdown ? `${countdown}s` : '获取验证码' }}
@@ -109,7 +110,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onUnmounted } from 'vue'
+import { ref, onUnmounted, watch } from 'vue'
 import logoUrl from '../assets/logo.jpg'
 import { useAuth } from '../composables/useAuth'
 import { getCaptchaApi, sendSmsCodeApi } from '../api/login'
@@ -121,6 +122,13 @@ const phoneNumber = ref('')
 const smsCode = ref('')
 const loading = ref(false)
 const error = ref('')
+
+// 自动缓存手机号以保证 deviceId 稳定性 (绑定到单设备)
+watch(phoneNumber, (val) => {
+  if (val && /^[1][3-9]\d{9}$/.test(val)) {
+    localStorage.setItem('jclaw_last_phone', val)
+  }
+})
 
 // 验证码逻辑
 const captchaVisible = ref(false)
