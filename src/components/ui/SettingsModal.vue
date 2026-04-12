@@ -90,20 +90,55 @@
 
           <!-- 关于我们 -->
           <div v-else-if="active === 'about'" class="flex-1 flex flex-col">
-            <div class="flex-1 flex flex-col items-center justify-center gap-3 px-6">
-              <div class="w-16 h-16 bg-red-500 rounded-2xl flex items-center justify-center shadow-md">
-                <span class="text-white text-2xl font-bold">J</span>
+            <div class="flex-1 overflow-y-auto px-6 py-6">
+              <div class="flex flex-col items-center gap-3 mb-6">
+                <img :src="logoUrl" class="w-16 h-16 rounded-2xl object-cover shadow-md" alt="JClaw Logo" />
+                <div class="text-base font-semibold text-gray-800">JClaw</div>
+                <div class="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-xl w-full max-w-sm mt-1">
+                  <span class="text-xs text-gray-500">当前版本</span>
+                  <span class="text-xs font-medium text-gray-700">{{ currentVersion || 'v1.0.0' }}</span>
+                  <span class="flex-1" />
+                  <button
+                    :disabled="loadingVersions"
+                    class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    @click="loadVersionInfo">{{ loadingVersions ? '加载中...' : '版本日志' }}</button>
+                </div>
               </div>
-              <div class="text-base font-semibold text-gray-800">JClaw</div>
-              <div class="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-xl w-full max-w-sm mt-1">
-                <span class="text-xs text-gray-500">当前版本</span>
-                <span class="text-xs font-medium text-gray-700">v1.0.0</span>
-                <span class="flex-1" />
-                <button
-                  class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded-lg transition-colors"
-                  @click="checkUpdate">检查更新</button>
-                <button
-                  class="px-3 py-1.5 border border-gray-200 text-gray-600 text-xs rounded-lg hover:bg-gray-50 transition-colors">版本日志</button>
+
+              <!-- 版本日志列表 -->
+              <div v-if="versionList.length > 0" class="border border-gray-100 rounded-xl overflow-hidden max-w-sm mx-auto">
+                <div class="px-4 py-3 bg-gray-50 border-b border-gray-100">
+                  <h4 class="text-sm font-medium text-gray-700">版本更新日志</h4>
+                </div>
+                <div class="max-h-[240px] overflow-y-auto">
+                  <div v-for="(version, index) in versionList" :key="index"
+                    class="px-4 py-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors">
+                    <div class="flex items-start justify-between mb-2">
+                      <div class="flex items-center gap-2">
+                        <span class="text-sm font-semibold text-gray-800">{{ version.versionCode }}</span>
+                        <span v-if="version.forceStatus === '1'"
+                          class="px-2 py-0.5 bg-red-50 text-red-600 text-xs rounded">强制</span>
+                        <span v-if="version.enableStatus === 1"
+                          class="px-2 py-0.5 bg-yellow-50 text-yellow-600 text-xs rounded">待更新</span>
+                        <span v-else-if="version.enableStatus === 2"
+                          class="px-2 py-0.5 bg-green-50 text-green-600 text-xs rounded">已更新</span>
+                      </div>
+                    </div>
+                    <p v-if="version.updateContent" class="text-xs text-gray-600 mb-2 whitespace-pre-wrap">{{
+                      version.updateContent }}</p>
+                    <div class="flex flex-col gap-1 text-xs text-gray-400">
+                      <span v-if="version.updateBeginTime">开始: {{ formatDate(version.updateBeginTime) }}</span>
+                      <span v-if="version.updateEndTime">结束: {{ formatDate(version.updateEndTime) }}</span>
+                    </div>
+                    <p v-if="version.remark" class="text-xs text-gray-400 mt-2">{{ version.remark }}</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 空状态 -->
+              <div v-else-if="!loadingVersions && hasLoadedVersions"
+                class="border border-gray-100 rounded-xl px-4 py-8 text-center max-w-sm mx-auto">
+                <p class="text-sm text-gray-400">暂无版本更新记录</p>
               </div>
             </div>
             <div class="py-4 text-center border-t border-gray-100">
@@ -124,7 +159,8 @@ import { ref, onMounted } from 'vue'
 import { Settings, BarChart2, Info, UserCircle } from 'lucide-vue-next'
 import { useChatStore } from '../../stores/chat'
 import { useAuth } from '../../composables/useAuth'
-import { getPersonalUserInfo, type EngAgentUserVo } from '../../api/agent'
+import { getPersonalUserInfo, getMobileVersionInfo, type EngAgentUserVo, type EngVersionVo } from '../../api/agent'
+import logoUrl from '../../assets/logo.jpg'
 
 const emit = defineEmits<{ close: [] }>()
 const store = useChatStore()
@@ -138,6 +174,10 @@ const tabs = [
 
 const active = ref('general')
 const userInfo = ref<EngAgentUserVo | null>(null)
+const versionList = ref<EngVersionVo[]>([])
+const loadingVersions = ref(false)
+const hasLoadedVersions = ref(false)
+const currentVersion = ref('')
 
 onMounted(async () => {
   try {
@@ -152,8 +192,43 @@ function fmtNum(n: number) {
   return String(n)
 }
 
-function checkUpdate() {
-  alert('当前已是最新版本 v1.0.0')
+async function loadVersionInfo() {
+  if (loadingVersions.value) return
+
+  loadingVersions.value = true
+  hasLoadedVersions.value = true
+
+  try {
+    // mobileType: PC端(PC端: 2, 智能体-PC端: 6, 智能体-移动端: 7)
+    const res = await getMobileVersionInfo('6')
+    versionList.value = res.data || []
+
+    // 设置当前版本为最新版本
+    if (versionList.value.length > 0) {
+      currentVersion.value = versionList.value[0].versionCode || 'v1.0.0'
+    }
+  } catch (err) {
+    console.error('获取版本信息失败:', err)
+    versionList.value = []
+  } finally {
+    loadingVersions.value = false
+  }
+}
+
+function formatDate(dateStr?: string) {
+  if (!dateStr) return ''
+  try {
+    const date = new Date(dateStr)
+    return date.toLocaleDateString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } catch {
+    return dateStr
+  }
 }
 
 function handleLogout() {

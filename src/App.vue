@@ -14,9 +14,9 @@
       </button>
       <div class="flex-1" />
       <!-- iframe 通信测试按钮 -->
-      <button @click="testIframe"
+      <!-- <button @click="testIframe"
         class="px-2.5 py-1 text-xs border border-gray-200 rounded text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors font-mono"
-        title="测试 iframe 通信">测试通信</button>
+        title="测试 iframe 通信">测试通信</button> -->
       <!-- WS 状态指示 -->
       <div :class="[
         'w-2 h-2 rounded-full shrink-0 transition-colors',
@@ -168,18 +168,18 @@ ws.on('not-paired', () => {
   pairingModalVisible.value = true
 })
 
-function testIframe() {
-  const testMsg = { type: 'JCLAW_SET_TOKEN', access_token: '7c42142c-170f-484a-aa4e-bed5a1944341', timestamp: Date.now(), message: 'hello from JClaw' }
-  const iframe = bridge.iframeRef.value
-  if (!iframe?.contentWindow) {
-    // alert('iframe 未加载，无法测试通信')
-    return
-  }
-  const origin = (import.meta.env.VITE_BUSINESS_SYSTEM_ORIGIN as string | undefined) || '*'
-  iframe.contentWindow.postMessage(testMsg, origin)
-  bridge.isVisible.value = true
-  // alert(`已发送测试消息：\n${JSON.stringify(testMsg, null, 2)}\n\n请在 iframe 页面的控制台查看是否收到消息。`)
-}
+// function testIframe() {
+//   const testMsg = { type: 'JCLAW_SET_TOKEN', access_token: '7c42142c-170f-484a-aa4e-bed5a1944341', timestamp: Date.now(), message: 'hello from JClaw' }
+//   const iframe = bridge.iframeRef.value
+//   if (!iframe?.contentWindow) {
+//     // alert('iframe 未加载，无法测试通信')
+//     return
+//   }
+//   const origin = (import.meta.env.VITE_BUSINESS_SYSTEM_ORIGIN as string | undefined) || '*'
+//   iframe.contentWindow.postMessage(testMsg, origin)
+//   bridge.isVisible.value = true
+//   // alert(`已发送测试消息：\n${JSON.stringify(testMsg, null, 2)}\n\n请在 iframe 页面的控制台查看是否收到消息。`)
+// }
 
 function goToPairing() {
   window.open('http://127.0.0.1:18789/nodes', '_blank')

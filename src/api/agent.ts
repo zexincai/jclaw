@@ -249,3 +249,35 @@ export function chatRecordDataSearchPage(params: {
 export function getPersonalUserInfo() {
   return http.get<AjaxResult<EngAgentUserVo>>('/eng/agentUser/personal/info')
 }
+
+// -------- 版本管理 --------
+
+/**
+ * 版本信息 VO
+ * @description 版本信息视图对象
+ */
+export interface EngVersionVo {
+  /** 启用状态 (待更新: 1, 已更新: 2) */
+  enableStatus?: number
+  /** 强制更新 (否: 0, 是: 1) */
+  forceStatus?: string
+  /** 备注 */
+  remark?: string
+  /** 版本更新开始时间 */
+  updateBeginTime?: string
+  /** 更新内容 */
+  updateContent?: string
+  /** 版本更新结束时间 */
+  updateEndTime?: string
+  /** 当前版本号 */
+  versionCode?: string
+}
+
+/**
+ * 获取移动端版本信息
+ * @summary 获取版本信息列表
+ * @param mobileType PC端(PC端: 2, 智能体-PC端: 6, 智能体-移动端: 7)
+ */
+export function getMobileVersionInfo(mobileType: string) {
+  return http.get<AjaxResult<EngVersionVo[]>>('/eng/version/getMobileVersionInfo', { mobileType })
+}
