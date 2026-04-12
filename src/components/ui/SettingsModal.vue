@@ -31,43 +31,41 @@
           <!-- 通用设置 -->
           <div v-if="active === 'general'" class="flex-1 p-6 overflow-y-auto">
             <h3 class="text-sm font-semibold text-gray-700 mb-5">通用设置</h3>
-            <div class="space-y-1">
-              <div class="flex items-center justify-between py-3 border-b border-gray-100">
-                <div>
-                  <div class="text-sm text-gray-700">界面语言</div>
-                  <div class="text-xs text-gray-400 mt-0.5">当前界面显示语言</div>
+            <div class="space-y-3">
+              <!-- 用户信息卡片 -->
+              <div class="border border-gray-100 rounded-xl overflow-hidden">
+                <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                  <span class="text-sm text-gray-700">头像</span>
+                  <div class="w-10 h-10 rounded-full overflow-hidden bg-gray-100 shrink-0">
+                    <img v-if="userInfo?.portraitUrl" :src="userInfo.portraitUrl" class="w-full h-full object-cover" />
+                    <div v-else class="w-full h-full flex items-center justify-center text-gray-400 text-xs">
+                      <UserCircle :size="28" />
+                    </div>
+                  </div>
                 </div>
-                <select class="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-600 bg-white focus:outline-none focus:ring-1 focus:ring-gray-300">
-                  <option>中文</option>
-                  <option>English</option>
-                </select>
-              </div>
-              <div class="flex items-center justify-between py-3 border-b border-gray-100">
-                <div>
-                  <div class="text-sm text-gray-700">发送快捷键</div>
-                  <div class="text-xs text-gray-400 mt-0.5">按下后发送消息</div>
+                <div class="flex items-center justify-between px-5 py-4">
+                  <span class="text-sm text-gray-700">姓名</span>
+                  <span class="text-sm text-gray-500">{{ userInfo?.realName || '—' }}</span>
                 </div>
-                <select class="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-600 bg-white focus:outline-none focus:ring-1 focus:ring-gray-300">
-                  <option>Enter</option>
-                  <option>Ctrl + Enter</option>
-                </select>
               </div>
-              <div class="flex items-center justify-between py-3">
+
+              <!-- 休眠阻止 -->
+              <div class="border border-gray-100 rounded-xl px-5 py-4 flex items-center justify-between">
                 <div>
-                  <div class="text-sm text-gray-700">自动展开思考过程</div>
-                  <div class="text-xs text-gray-400 mt-0.5">收到消息时自动展开 Thinking</div>
+                  <span class="text-sm text-gray-700 font-medium">休眠阻止</span>
+                  <span class="text-xs text-gray-400 ml-2">开启后，电脑将不会进入休眠模式，JClaw 会保持活跃状态</span>
                 </div>
                 <button
-                  @click="autoExpandThinking = !autoExpandThinking"
+                  @click="preventSleep = !preventSleep"
                   :class="[
-                    'w-9 h-5 rounded-full transition-colors relative shrink-0',
-                    autoExpandThinking ? 'bg-teal-500' : 'bg-gray-200'
+                    'w-11 h-6 rounded-full transition-colors relative shrink-0 ml-4',
+                    preventSleep ? 'bg-blue-500' : 'bg-gray-200'
                   ]"
                 >
                   <span
                     :class="[
-                      'absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform',
-                      autoExpandThinking ? 'translate-x-4' : 'translate-x-0.5'
+                      'absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform',
+                      preventSleep ? 'translate-x-5' : 'translate-x-0.5'
                     ]"
                   />
                 </button>
@@ -137,9 +135,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { Settings, BarChart2, Info } from 'lucide-vue-next'
+import { ref, onMounted } from 'vue'
+import { Settings, BarChart2, Info, UserCircle } from 'lucide-vue-next'
 import { useChatStore } from '../../stores/chat'
+import { getPersonalUserInfo, type EngAgentUserVo } from '../../api/agent'
 
 const emit = defineEmits<{ close: [] }>()
 const store = useChatStore()
@@ -151,7 +150,15 @@ const tabs = [
 ]
 
 const active = ref('general')
-const autoExpandThinking = ref(false)
+const preventSleep = ref(false)
+const userInfo = ref<EngAgentUserVo | null>(null)
+
+onMounted(async () => {
+  try {
+    const res = await getPersonalUserInfo()
+    userInfo.value = (res as any).data ?? null
+  } catch { /* ignore */ }
+})
 
 function fmtNum(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`

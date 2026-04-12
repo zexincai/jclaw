@@ -1,12 +1,8 @@
 <template>
   <div class="flex flex-col h-full">
-    <iframe
-      :ref="(el) => { bridge.iframeRef.value = el as HTMLIFrameElement | null }"
-      :src="businessUrl"
-      class="flex-1 w-full border-0"
-      sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-      @load="onIframeLoad"
-    />
+    <iframe :ref="(el) => { bridge.iframeRef.value = el as HTMLIFrameElement | null }" :src="businessUrl"
+      class="flex-1 w-full border-0" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+      @load="onIframeLoad" />
   </div>
 </template>
 

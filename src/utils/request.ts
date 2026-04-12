@@ -1,6 +1,7 @@
 import { getDeviceId } from './device'
 
 const BASE_URL = 'http://192.168.2.99:9199'
+let isLoggingOut = false
 
 // 统一响应结构
 export interface ApiResponse<T = unknown> {
@@ -43,6 +44,15 @@ async function request<T>(url: string, options: RequestOptions = {}): Promise<Ap
     })
 
     const json: ApiResponse<T> = await res.json()
+
+    // 登录过期处理（防抖）
+    if (json.code === 503 && !isLoggingOut) {
+      isLoggingOut = true
+      localStorage.removeItem('jclaw_token')
+      localStorage.removeItem('jclaw_auth')
+      window.location.reload()
+      throw new Error('登录已过期，请重新登录')
+    }
 
     // 业务错误处理
     if (json.code !== 200) {

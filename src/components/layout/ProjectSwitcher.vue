@@ -59,7 +59,7 @@ async function handleSwitch(projectId: string) {
   store.sessions = []
   store.activeSessionId = ''
   setActive(projectId)
-  auth.setRole(projectId)
+  await auth.switchRole(projectId)
   await chat.loadSessions()
   if (!store.activeSessionId) {
     chat.newSession()

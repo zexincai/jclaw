@@ -281,7 +281,7 @@ export function useChat() {
             fkChatId: currentChatId,
             chatContent: text,
             chatObject: '1',
-          }).catch(() => {})
+          }).catch(() => { })
         }
 
         streamingId = null
@@ -446,16 +446,45 @@ export function useChat() {
         chatContent: text,
         chatObject: '0',
         ...(attachments.length ? {
-          chatRecordFileList: attachments.map(a => ({ fileName: a.name, fileType: a.mimeType }))
+          chatRecordFileList: attachments.map(a => {
+            // 根据 mimeType 判断文件类型：0-图片，1-文件，2-音频
+            let fileType = 1 // 默认为文件
+            if (a.mimeType.startsWith('image/')) {
+              fileType = 0
+            } else if (a.mimeType.startsWith('audio/')) {
+              fileType = 2
+            }
+
+            return {
+              fileName: a.name,
+              fileType: String(fileType),
+              fileUrl: a.data // data 字段现在存储的是上传后的真实 URL
+            }
+          })
         } : {}),
-      }).catch(() => {})
+      }).catch(() => { })
     }
 
     try {
       const auth = useAuth()
       const roleToken = auth.token.value
       const systemPrompt = auth.currentRole.value?.userRolePrompt
-      const messageWithCtx = buildMessageWithCtx(text, roleToken, systemPrompt)
+
+      // 将图片 URL 以 markdown 格式插入到发送给 AI 的文本中
+      let textWithImages = text
+      if (attachments.length > 0) {
+        console.log('Processing attachments...', attachments)
+        const imageMarkdown = attachments
+          .filter(a => a.mimeType.startsWith('image/'))
+          .map(a => `![${a.name}](${a.data})`)
+          .join('\n')
+
+        if (imageMarkdown) {
+          textWithImages = imageMarkdown + (text ? '\n' + text : '')
+        }
+      }
+
+      const messageWithCtx = buildMessageWithCtx(textWithImages, roleToken, systemPrompt)
       const wsAttachments = attachments.map(a => ({ name: a.name, mimeType: a.mimeType, data: a.data }))
       // 同步 currentSessionKey，确保 chat 事件过滤器能接受服务端响应
       const chatSessionKey = project.channelId || currentSessionKey
@@ -523,15 +552,34 @@ export function useChat() {
       const data = (res as any).data
       const records: any[] = Array.isArray(data?.records) ? data.records : (Array.isArray(data) ? data : [])
       const msgs: Message[] = records
-        .map(r => ({
-          id: String(r.pkId),
-          sessionId,
-          role: (r.chatObject === '0' ? 'user' : 'assistant') as 'user' | 'assistant',
-          content: r.chatContent || '',
-          status: 'done' as const,
-          createdAt: r.createTime || new Date().toISOString(),
-        }))
-        .filter(m => m.content.trim())
+        .map(r => {
+          // 转换后端的 chatRecordFileList 为前端的 attachments 格式
+          let attachments: Attachment[] | undefined
+          if (r.chatRecordFileList && Array.isArray(r.chatRecordFileList) && r.chatRecordFileList.length > 0) {
+            attachments = r.chatRecordFileList.map((file: any) => {
+              // fileType 可能是数字或字符串，统一转换为字符串比较
+              const fileType = String(file.fileType)
+              return {
+                name: file.fileName || 'unknown',
+                mimeType: fileType === '0' ? 'image/png' : (fileType === '2' ? 'audio/mp3' : 'application/octet-stream'),
+                data: file.fileUrl || '',
+                previewUrl: fileType === '0' ? file.fileUrl : undefined,
+              }
+            })
+          }
+
+          return {
+            id: String(r.pkId),
+            sessionId,
+            role: (String(r.chatObject) === '0' ? 'user' : 'assistant') as 'user' | 'assistant',
+            content: r.chatContent || '',
+            status: 'done' as const,
+            createdAt: r.createTime || new Date().toISOString(),
+            ...(attachments ? { attachments } : {}),
+          }
+        })
+        .filter(m => m.content.trim() || m.attachments)
+        .reverse()
       store.messages = store.messages.filter(m => m.sessionId !== sessionId).concat(msgs)
     } catch { /* ignore */ }
   }

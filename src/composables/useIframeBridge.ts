@@ -15,6 +15,7 @@ const isVisible = ref(false)
 const savedHandlers = new Set<SavedHandler>()
 const cancelledHandlers = new Set<CancelledHandler>()
 let listenerAttached = false
+let cachedToken = ''
 
 function attachListener() {
   if (listenerAttached) return
@@ -24,7 +25,9 @@ function attachListener() {
     if (ORIGIN && e.origin !== ORIGIN) return
     const data = e.data as { type?: string; modal?: string; record?: unknown }
     if (!data?.type) return
-    if (data.type === 'JCLAW_MODAL_SAVED') {
+    if (data.type === 'INIT') {
+      if (cachedToken) sendToken(cachedToken)
+    } else if (data.type === 'JCLAW_MODAL_SAVED') {
       savedHandlers.forEach(h => h(data.modal!, data.record))
     } else if (data.type === 'JCLAW_MODAL_CANCELLED') {
       cancelledHandlers.forEach(h => h(data.modal!))
@@ -81,8 +84,9 @@ function dispatchAction(payload: unknown) {
 
 function sendToken(token: string) {
   if (!token) return
+  cachedToken = token
   iframeRef.value?.contentWindow?.postMessage(
-    plain({ type: 'JCLAW_SET_TOKEN', token }),
+    plain({ type: 'JCLAW_SET_TOKEN', access_token: token }),
     ORIGIN || '*'
   )
 }

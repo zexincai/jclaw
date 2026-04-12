@@ -529,7 +529,7 @@ export function checkOrgName(orgName: string) {
  * @param sourceType 登陆来源（pc：1，app:2,AI:3）
  * @param switchType 账号标识是否切换账号获取（否：0，是：1）
  */
-export function findUserByTelephone(sourceType: string, switchType: number) {
+export function findUserByTelephone(sourceType: number, switchType: number) {
   return http.get<AjaxResult<LoginUserVo[]>>('/auth/findUserByTelephone', { sourceType, switchType })
 }
 

@@ -7,14 +7,12 @@
         <template v-for="att in message.attachments" :key="att.name">
           <img
             v-if="att.mimeType.startsWith('image/')"
-            :src="`data:${att.mimeType};base64,${att.data}`"
-            class="max-w-[160px] max-h-[120px] rounded-lg object-cover border border-gray-200"
+            :src="att.data"
+            @click="openImagePreview(att.data)"
+            class="max-w-[160px] max-h-[120px] rounded-lg object-cover border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
             :alt="att.name"
           />
-          <div
-            v-else
-            class="flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-xs text-gray-600"
-          >
+          <div v-else class="flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-xs text-gray-600">
             <Paperclip :size="10" />{{ att.name }}
           </div>
         </template>
@@ -29,47 +27,55 @@
       </div>
     </div>
     <!-- 用户头像 -->
-    <div class="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-xs font-bold shrink-0 mt-0.5">
+    <div
+      class="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-xs font-bold shrink-0 mt-0.5">
       我
     </div>
   </div>
 
   <!-- AI 消息：左对齐白色卡片 + 角色头像 -->
   <div v-else class="flex items-start gap-2 mb-4 max-w-[85%]">
-    <div
-      class="w-7 h-7 rounded-full overflow-hidden shrink-0 mt-0.5 border border-gray-100 shadow-sm"
-      :title="projectName"
-    >
+    <div class="w-7 h-7 rounded-full overflow-hidden shrink-0 mt-0.5 border border-gray-100 shadow-sm"
+      :title="projectName">
       <img :src="logoUrl" class="w-full h-full object-cover" />
     </div>
     <div class="flex flex-col min-w-0">
-      <span class="text-xs text-gray-400 mb-1">{{ projectName }}</span>
+      <!-- <span class="text-xs text-gray-400 mb-1">Assistant{{ projectName }}</span> -->
       <div class="px-4 py-3 bg-white border border-gray-100 rounded-2xl rounded-tl-sm shadow-sm">
-        <ThinkingBlock
-          v-if="message.thinking"
-          :content="message.thinking"
-          :streaming="message.status === 'streaming'"
-        />
-        <MarkdownContent
-          :content="message.content || ''"
-          :streaming="message.status === 'streaming'"
-        />
-        <ActionCard
-          v-if="message.actionJson && !message.actionJson.autoOpen"
-          :modal="message.actionJson.modal"
-          @trigger="emit('open-modal', message.actionJson!)"
-        />
-        <ActionTagButton
-          v-if="message.platformAction"
-          :action="message.platformAction"
-        />
+        <ThinkingBlock v-if="message.thinking" :content="message.thinking"
+          :streaming="message.status === 'streaming'" />
+        <MarkdownContent :content="message.content || ''" :streaming="message.status === 'streaming'" />
+        <ActionCard v-if="message.actionJson && !message.actionJson.autoOpen" :modal="message.actionJson.modal"
+          @trigger="emit('open-modal', message.actionJson!)" />
+        <ActionTagButton v-if="message.platformAction" :action="message.platformAction" />
       </div>
     </div>
   </div>
+
+  <!-- 图片预览弹窗 -->
+  <Teleport to="body">
+    <div
+      v-if="previewImage"
+      @click="previewImage = null"
+      class="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 cursor-zoom-out"
+    >
+      <img
+        :src="previewImage"
+        class="max-w-full max-h-full object-contain"
+        @click.stop
+      />
+      <button
+        @click="previewImage = null"
+        class="absolute top-4 right-4 w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white text-2xl transition-colors"
+      >
+        ×
+      </button>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { AlertCircle, Paperclip } from 'lucide-vue-next'
 import type { Message, ActionPayload } from '../../stores/chat'
 import { useChatStore } from '../../stores/chat'
@@ -84,4 +90,9 @@ const emit = defineEmits<{ retry: []; 'open-modal': [action: ActionPayload] }>()
 
 const store = useChatStore()
 const projectName = computed(() => store.activeProject()?.name ?? '')
+const previewImage = ref<string | null>(null)
+
+function openImagePreview(url: string) {
+  previewImage.value = url
+}
 </script>

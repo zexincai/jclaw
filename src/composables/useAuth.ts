@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue'
-import { aiSysLoginPc } from '../api/auth'
+import { aiSysLoginPc, switchLogin } from '../api/auth'
 export interface Role {
   userId: string
   loginName: string
@@ -32,13 +32,21 @@ function restore() {
   try {
     const rawAuth = localStorage.getItem(AUTH_STORAGE_KEY)
     token.value = localStorage.getItem(TOKEN_STORAGE_KEY) || ''
-    
+
     if (!rawAuth) return
     const data: { roles: Role[]; currentRoleId: string } = JSON.parse(rawAuth)
     if (data.roles?.length) {
       roles.value = data.roles
       currentRoleId.value = data.currentRoleId || data.roles[0].userId
       isLoggedIn.value = !!token.value
+
+      // 如果当前已登录但缺失 last_phone，则根据当前角色恢复它以保证 deviceId 稳定性
+      if (isLoggedIn.value && !localStorage.getItem('jclaw_last_phone')) {
+        const role = data.roles.find(r => r.userId === currentRoleId.value) || data.roles[0]
+        if (role.telephone) {
+          localStorage.setItem('jclaw_last_phone', role.telephone)
+        }
+      }
     }
   } catch { /* ignore */ }
 }
@@ -85,7 +93,7 @@ export function useAuth() {
     const data = json.data ?? json
     const accessToken = data.access_token
     const userList: Role[] = data.userList ?? []
-    
+
     if (!accessToken) throw new Error('未获取到登录令牌')
     if (!userList.length) throw new Error('未获取到账户信息')
 
@@ -104,6 +112,24 @@ export function useAuth() {
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(stored))
   }
 
+  async function switchRole(roleId: string) {
+    const role = roles.value.find(r => r.userId === roleId)
+
+    if (!role) {
+      throw new Error(`角色 ${roleId} 不存在`)
+    }
+    const phoneNumber = localStorage.getItem('jclaw_last_phone') || roles.value[0]?.telephone || ''
+    console.log('switching role:', role)
+    const res = (await switchLogin({ phoneNumber, pkId: role.userId as any, sourceType: 3 })) as any
+    const data = res.data ?? res
+    const newToken = data.access_token
+    if (newToken) {
+      token.value = newToken
+      localStorage.setItem(TOKEN_STORAGE_KEY, newToken)
+    }
+    setRole(roleId)
+  }
+
   function logout() {
     roles.value = []
     currentRoleId.value = ''
@@ -117,7 +143,7 @@ export function useAuth() {
   async function loginByMobile(phoneNumber: string, code: string, uuid: string) {
     // 立即设置上一次手机号，以便请求拦截器能生成正确的 deterministic deviceId
     localStorage.setItem('jclaw_last_phone', phoneNumber)
-    
+
     const res = (await aiSysLoginPc({ phoneNumber, code, forceType: 1, uuid, sourceType: 3, operateSource: 2 })) as any
     const data = res.data ?? res
     const accessToken = data.access_token
@@ -136,5 +162,5 @@ export function useAuth() {
     localStorage.setItem('jclaw_last_phone', phoneNumber)
   }
 
-  return { isLoggedIn, roles, currentRole, token, login, loginByMobile, setRole, logout }
+  return { isLoggedIn, roles, currentRole, token, login, loginByMobile, setRole, switchRole, logout }
 }

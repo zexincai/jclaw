@@ -4,6 +4,7 @@ import type { Project } from '../stores/chat'
 import { useAuth } from './useAuth'
 
 const STORAGE_KEY = 'jclaw_projects'
+const ACTIVE_PROJECT_KEY = 'jclaw_active_project'
 
 function defaultProjects(): Project[] {
   return [
@@ -41,7 +42,11 @@ export function useProjects() {
         // 如果 API 不再提供 channelId，使用基于 userId 的默认值
         channelId: `agent:${r.userId}:main`,
       }))
-      if (!store.activeProjectId || !store.projects.find(p => p.id === store.activeProjectId)) {
+      // 尝试从 localStorage 恢复上次选择的项目
+      const savedActiveId = localStorage.getItem(ACTIVE_PROJECT_KEY)
+      if (savedActiveId && store.projects.find(p => p.id === savedActiveId)) {
+        store.activeProjectId = savedActiveId
+      } else if (!store.activeProjectId || !store.projects.find(p => p.id === store.activeProjectId)) {
         store.activeProjectId = store.projects[0]?.id ?? ''
       }
       return
@@ -56,6 +61,7 @@ export function useProjects() {
 
   function setActive(projectId: string) {
     store.activeProjectId = projectId
+    localStorage.setItem(ACTIVE_PROJECT_KEY, projectId)
   }
 
   function addProject(name: string, channelId: string) {
