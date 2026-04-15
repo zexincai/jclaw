@@ -60,8 +60,9 @@ function extractThinking(text: string): string {
 }
 
 /** Vite 构建时加载 src/skills/*.md 原始内容 */
-// const skillModules = import.meta.glob('../skills/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
-// const SKILLS_CONTENT = Object.values(skillModules).join('\n\n---\n\n')
+const skillModules = import.meta.glob('../skills/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const SKILLS_ENABLED = import.meta.env.VITE_ENABLE_SKILLS === 'true'
+const SKILLS_CONTENT = SKILLS_ENABLED ? Object.values(skillModules).join('\n\n---\n\n') : ''
 
 /** 将 roleToken + systemPrompt + skills 拼接为 <system> 内容块，前缀在消息体最前面。
  *  AI（Claude）对 <system> 标签有原生理解，会将其内容作为系统级指令处理。 */
@@ -70,7 +71,7 @@ function buildMessageWithCtx(text: string, token?: string, prompt?: string): str
   const lines = [
     prompt || '',
     token ? `用户令牌：${token}` : '',
-    // SKILLS_CONTENT ? `\n<skills>\n${SKILLS_CONTENT}\n</skills>` : '',
+    SKILLS_CONTENT ? `\n<skills>\n${SKILLS_CONTENT}\n</skills>` : '',
   ].filter(Boolean).join('\n')
   return `<system>\n${lines}\n</system>\n\n${text}`
 }
@@ -137,6 +138,7 @@ function persistMessage(msg: Message) {
 export function useChat() {
   const store = useChatStore()
   const ws = useWebSocket()
+  const auth = useAuth()
 
   // 只注册一次全局事件监听
   if (!initialized) {
@@ -147,6 +149,28 @@ export function useChat() {
     ws.on('connected', (payload: unknown) => {
       const p = payload as { sessionKey?: string }
       if (p.sessionKey) currentSessionKey = p.sessionKey
+      auth.setConnectionStatus('connected')
+    })
+
+    ws.on('auth-error', () => {
+      store.wsStatus = 'disconnected'
+      auth.setConnectionStatus('failed', '认证失败，请检查 Token 是否正确')
+    })
+
+    ws.on('invalid-request', () => {
+      store.wsStatus = 'disconnected'
+      auth.setConnectionStatus('failed', '无效的请求，请配置 OpenClaw Token')
+    })
+
+    ws.on('max-retries', () => {
+      store.wsMaxRetries = true
+      store.wsStatus = 'disconnected'
+      auth.setConnectionStatus('failed', '连接失败，已达到最大重试次数')
+    })
+
+    ws.on('reconnecting', () => {
+      store.wsStatus = 'connecting'
+      auth.setConnectionStatus('verifying')
     })
 
     // chat 事件：新格式 state = 'delta' | 'final' | 'aborted' | 'error'
@@ -575,14 +599,36 @@ export function useChat() {
             })
           }
 
+          // 对 AI 消息内容进行标签解析
+          const rawContent = r.chatContent || ''
+          const isAssistant = String(r.chatObject) === '1'
+
+          let platformAction: PlatformAction | undefined
+          let cleanedContent = rawContent
+
+          if (isAssistant) {
+            // 提取平台 Action 标签
+            platformAction = extractPlatformAction(rawContent)
+            if (platformAction) {
+              cleanedContent = stripAllActionTags(rawContent)
+            } else {
+              // 提取 iframe 跳转指令（如果有）
+              const iframeAction = extractIframeAction(rawContent)
+              if (iframeAction) {
+                cleanedContent = stripActionJson(rawContent)
+              }
+            }
+          }
+
           return {
             id: String(r.pkId),
             sessionId,
             role: (String(r.chatObject) === '0' ? 'user' : 'assistant') as 'user' | 'assistant',
-            content: r.chatContent || '',
+            content: cleanedContent,
             status: 'done' as const,
             createdAt: r.createTime || new Date().toISOString(),
             ...(attachments ? { attachments } : {}),
+            ...(platformAction ? { platformAction } : {}),
           }
         })
         .filter(m => m.content.trim() || m.attachments)

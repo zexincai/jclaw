@@ -3,6 +3,7 @@
  * 其他组件调用 openModal 时共享同一引用
  */
 import { ref } from 'vue'
+import { useChat } from './useChat'
 
 type SavedHandler = (modal: string, record: unknown) => void
 type CancelledHandler = (modal: string) => void
@@ -21,17 +22,25 @@ function attachListener() {
   if (listenerAttached) return
   listenerAttached = true
   window.addEventListener('message', (e: MessageEvent) => {
-    console.log('hahahahah:', e.data)
-    if (ORIGIN && e.origin !== ORIGIN) return
-    const data = e.data as { type?: string; modal?: string; record?: unknown }
+    // if (ORIGIN && e.origin !== ORIGIN) return
+    const data = e.data as { type?: string; modal?: string; record?: unknown; origin?: string; text?: string; message?: string }
     if (!data?.type) return
-    if (data.type === 'INIT') {
-      if (cachedToken) sendToken(cachedToken)
-    } else if (data.type === 'JCLAW_MODAL_SAVED') {
-      savedHandlers.forEach(h => h(data.modal!, data.record))
-    } else if (data.type === 'JCLAW_MODAL_CANCELLED') {
-      cancelledHandlers.forEach(h => h(data.modal!))
+    if (data.origin === 'JWKJ') {
+      if (data.type === 'INIT') {
+        if (cachedToken) sendToken(cachedToken)
+      } else if (data.type === 'JCLAW_MODAL_SAVED') {
+        savedHandlers.forEach(h => h(data.modal!, data.record))
+      } else if (data.type === 'JCLAW_MODAL_CANCELLED') {
+        cancelledHandlers.forEach(h => h(data.modal!))
+      } else if (data.type === 'SEND') {
+        // 处理发送消息给 AI
+        if (data.message) {
+          const { send } = useChat()
+          send(data.message)
+        }
+      }
     }
+
   })
 }
 
@@ -40,10 +49,11 @@ function plain<T>(v: T): T {
 }
 
 function openModal(modal: string, data: Record<string, unknown>) {
+  console.log("fsfdssfdsfdsfdsfd", modal, data)
   attachListener()
   isVisible.value = true
   iframeRef.value?.contentWindow?.postMessage(
-    plain({ type: 'JCLAW_OPEN_MODAL', modal, data }),
+    plain({ type: 'JCLAW_OPEN_MODAL', modal, data, origin: 'JCLAW', access_token: cachedToken }),
     ORIGIN || '*'
   )
 }
@@ -57,7 +67,7 @@ function navigate(params: { menuPath: string; menuButtonCode: string; operateTyp
   attachListener()
   isVisible.value = true
   iframeRef.value?.contentWindow?.postMessage(
-    plain({ type: 'JCLAW_NAVIGATE', ...params }),
+    plain({ type: 'JCLAW_NAVIGATE', ...params, origin: 'JCLAW', access_token: cachedToken }),
     ORIGIN || '*'
   )
 }
@@ -77,7 +87,7 @@ function dispatchAction(payload: unknown) {
   attachListener()
   isVisible.value = true
   iframeRef.value?.contentWindow?.postMessage(
-    plain({ type: 'JCLAW_ACTION', payload }),
+    plain({ type: 'JCLAW_ACTION', ...(payload || {}), origin: "JCLAW", access_token: cachedToken }),
     ORIGIN || '*'
   )
 }
@@ -86,7 +96,7 @@ function sendToken(token: string) {
   if (!token) return
   cachedToken = token
   iframeRef.value?.contentWindow?.postMessage(
-    plain({ type: 'JCLAW_SET_TOKEN', access_token: token }),
+    plain({ type: 'JCLAW_SET_TOKEN', access_token: token, origin: 'JCLAW' }),
     ORIGIN || '*'
   )
 }

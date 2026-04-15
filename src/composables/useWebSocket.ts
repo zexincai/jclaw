@@ -18,7 +18,7 @@ let retryCount = 0;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 let connectTimer: ReturnType<typeof setTimeout> | null = null;
 let shouldReconnect = true;
-let savedToken = "000951b3082a5af89c06e1429dec1627682bf74e6c900b44";
+let savedToken = "";
 let savedUrl = "";
 const handlers = new Map<string, Set<EventHandler>>();
 const pendingRequests = new Map<string, (res: unknown) => void>();
@@ -163,6 +163,12 @@ function connect(token: string, url: string) {
         const err = frame.error as Record<string, unknown> | undefined;
         if (err?.code === "NOT_PAIRED") {
           emit("not-paired", err);
+        }
+        if (err?.code === "INVALID_REQUEST") {
+          status.value = "disconnected";
+          shouldReconnect = false;
+          emit("invalid-request", err);
+          ws?.close();
         }
       }
 
