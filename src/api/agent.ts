@@ -279,5 +279,5 @@ export interface EngVersionVo {
  * @param mobileType PC端(PC端: 2, 智能体-PC端: 6, 智能体-移动端: 7)
  */
 export function getMobileVersionInfo(mobileType: string) {
-  return http.get<AjaxResult<EngVersionVo[]>>('/eng/version/getMobileVersionInfo', { mobileType })
+  return http.get<EngVersionVo[]>('/eng/version/getMobileVersionInfo', { mobileType })
 }
