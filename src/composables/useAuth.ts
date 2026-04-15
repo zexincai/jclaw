@@ -20,12 +20,16 @@ export interface Role {
 
 const AUTH_STORAGE_KEY = 'jclaw_auth'
 const TOKEN_STORAGE_KEY = 'jclaw_token'
+const OPENCLAW_TOKEN_KEY = 'jclaw_openclaw_token'
 
 // 模块级单例
 const roles = ref<Role[]>([])
 const currentRoleId = ref<string>('')
 const token = ref<string>('')
 const isLoggedIn = ref(false)
+const openClawToken = ref<string>('')
+const connectionStatus = ref<'idle' | 'verifying' | 'connected' | 'failed'>('idle')
+const connectionError = ref<string | null>(null)
 
 // mock 模式下各角色的 systemPrompt 补全表（不活跃）
 
@@ -33,6 +37,12 @@ function restore() {
   try {
     const rawAuth = localStorage.getItem(AUTH_STORAGE_KEY)
     token.value = localStorage.getItem(TOKEN_STORAGE_KEY) || ''
+
+    // Restore OpenClaw token
+    const storedToken = localStorage.getItem(OPENCLAW_TOKEN_KEY)
+    if (storedToken) {
+      openClawToken.value = storedToken
+    }
 
     if (!rawAuth) return
     const data: { roles: Role[]; currentRoleId: string } = JSON.parse(rawAuth)
@@ -184,17 +194,54 @@ export function useAuth() {
     }
   }
 
-  return { 
-    isLoggedIn, 
-    roles, 
-    currentRole, 
-    token, 
+  function setOpenClawToken(token: string) {
+    openClawToken.value = token.trim()
+    if (token.trim()) {
+      localStorage.setItem(OPENCLAW_TOKEN_KEY, token.trim())
+    } else {
+      localStorage.removeItem(OPENCLAW_TOKEN_KEY)
+    }
+  }
+
+  function getOpenClawToken(): string {
+    // Priority: user-provided > localStorage > env variable
+    if (openClawToken.value) return openClawToken.value
+    const stored = localStorage.getItem(OPENCLAW_TOKEN_KEY)
+    if (stored) {
+      openClawToken.value = stored
+      return stored
+    }
+    return import.meta.env.VITE_OPENCLAW_TOKEN || ''
+  }
+
+  function clearOpenClawToken() {
+    openClawToken.value = ''
+    localStorage.removeItem(OPENCLAW_TOKEN_KEY)
+  }
+
+  function setConnectionStatus(status: typeof connectionStatus.value, error: string | null = null) {
+    connectionStatus.value = status
+    connectionError.value = error
+  }
+
+  return {
+    isLoggedIn,
+    roles,
+    currentRole,
+    token,
+    openClawToken,
+    connectionStatus,
+    connectionError,
     needsCertification,
-    login, 
-    loginByMobile, 
-    setRole, 
-    switchRole, 
+    login,
+    loginByMobile,
+    setRole,
+    switchRole,
     logout,
-    updateCertificationStatus
+    updateCertificationStatus,
+    setOpenClawToken,
+    getOpenClawToken,
+    clearOpenClawToken,
+    setConnectionStatus
   }
 }

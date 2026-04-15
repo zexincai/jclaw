@@ -90,3 +90,14 @@ export async function getDeviceId(phoneNumber?: string | null): Promise<string> 
   const identity = await getDeviceIdentity(phoneNumber);
   return identity.deviceId;
 }
+
+/**
+ * 使用设备私钥签名 payload
+ */
+export async function signPayload(payload: string, phoneNumber?: string | null): Promise<string> {
+  const identity = await getDeviceIdentity(phoneNumber);
+  const encoder = new TextEncoder();
+  const data = encoder.encode(payload);
+  const signature = await crypto.subtle.sign("Ed25519", identity.privateKey, data);
+  return base64UrlEncode(new Uint8Array(signature));
+}

@@ -6,7 +6,7 @@
         class="flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded-full transition-colors whitespace-nowrap"
         :class="openType === tab.type
           ? 'bg-blue-50 border-blue-200 text-blue-600'
-          : 'border-gray-200 text-gray-500 hover:bg-gray-50'">
+          : 'border-gray-200 text-gray-900 hover:bg-gray-50'">
         <component :is="tab.icon" :size="12" />
         {{ tab.label }}
         <ChevronRight :size="10" />
@@ -24,7 +24,7 @@
         <div v-for="item in items" :key="item.pkId"
           class="flex items-center gap-2 px-4 py-2 hover:bg-gray-50 transition-colors group cursor-pointer"
           @click="selectItem(item)">
-          <span class="flex-1 text-xs text-blue-500 truncate">{{ item.quickTitle }}</span>
+          <span class="flex-1 text-xs truncate">{{ item.quickTitle }}</span>
           <button @click.stop="deleteItem(item.pkId!)"
             class="text-red-400 hover:text-red-500 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
             <Trash2 :size="13" />

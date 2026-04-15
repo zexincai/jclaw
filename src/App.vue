@@ -83,6 +83,11 @@
     <RealNameAuthModal v-if="auth.needsCertification.value" :telephone="auth.currentRole.value?.telephone || ''"
       @success="onAuthSuccess" />
 
+    <!-- 连接状态弹窗 -->
+    <ConnectionStatusModal :visible="connectionModalVisible" :status="auth.connectionStatus.value"
+      :error="auth.connectionError.value" @close="connectionModalVisible = false" @retry="handleRetryConnection"
+      @update-token="handleUpdateToken" @not-paired="handleNotPaired" />
+
     <!-- 切换角色加载中 -->
     <GlobalLoading :visible="store.switchingRole" message="加载中" />
   </div>
@@ -99,6 +104,7 @@ import BusinessPanel from './components/layout/BusinessPanel.vue'
 import RealNameAuthModal from './components/modals/RealNameAuthModal.vue'
 import GlobalLoading from './components/GlobalLoading.vue'
 import LoginView from './views/LoginView.vue'
+import ConnectionStatusModal from './components/ConnectionStatusModal.vue'
 import { useWebSocket } from './composables/useWebSocket'
 import { useUsage } from './composables/useUsage'
 import { useProjects } from './composables/useProjects'
@@ -116,6 +122,7 @@ const auth = useAuth()
 
 const sidePanelOpen = ref(true)
 const pairingModalVisible = ref(false)
+const connectionModalVisible = ref(false)
 
 function onAuthSuccess() {
   auth.updateCertificationStatus(true)
@@ -169,14 +176,22 @@ ws.on('not-paired', () => {
 })
 
 function testIframe() {
-  const testMsg = { type: 'JCLAW_SET_TOKEN', access_token: '7c42142c-170f-484a-aa4e-bed5a1944341', timestamp: Date.now(), message: 'hello from JClaw' }
+  const testMsg = {
+    type: 'JCLAW_OPEN_MODAL',
+    "label": "查看施工日志",
+    "path": "/org/dept",
+    "menuId": "301",
+    name: "测试",
+    operateType: 0
+  }
   const iframe = bridge.iframeRef.value
   if (!iframe?.contentWindow) {
     // alert('iframe 未加载，无法测试通信')
     return
   }
-  const origin = (import.meta.env.VITE_BUSINESS_SYSTEM_ORIGIN as string | undefined) || '*'
-  iframe.contentWindow.postMessage(testMsg, origin)
+  bridge.dispatchAction(testMsg)
+  // const origin = (import.meta.env.VITE_BUSINESS_SYSTEM_ORIGIN as string | undefined) || '*'
+  // iframe.contentWindow.postMessage(testMsg, origin)
   bridge.isVisible.value = true
   // alert(`已发送测试消息：\n${JSON.stringify(testMsg, null, 2)}\n\n请在 iframe 页面的控制台查看是否收到消息。`)
 }
@@ -189,11 +204,35 @@ function goToPairing() {
 function connectWS() {
   if (store.wsStatus !== 'disconnected') return
   init()
-  const wsToken = import.meta.env.VITE_OPENCLAW_TOKEN || auth.token.value
+
+  // 获取 OpenClaw token（不使用业务系统 token）
+  const wsToken = auth.getOpenClawToken()
   const url = import.meta.env.VITE_OPENCLAW_WS_URL ?? 'ws://127.0.0.1:18789'
+
   if (wsToken) {
+    auth.setConnectionStatus('verifying')
     ws.connect(wsToken, url)
+  } else {
+    auth.setConnectionStatus('failed', '未配置 OpenClaw Token')
+    connectionModalVisible.value = true
   }
+}
+
+function handleRetryConnection() {
+  connectWS()
+}
+
+function handleUpdateToken(token: string) {
+  auth.setOpenClawToken(token)
+  // 强制断开现有连接，确保可以重新连接
+  ws.disconnect()
+  connectWS()
+}
+
+function handleNotPaired(error: Error) {
+  console.log('Device not paired:', error)
+  connectionModalVisible.value = false
+  pairingModalVisible.value = true
 }
 
 // 已登录（localStorage 恢复）时直接连接；登录事件触发时也连接
@@ -203,5 +242,12 @@ onMounted(() => {
 
 watch(auth.isLoggedIn, (loggedIn) => {
   if (loggedIn) connectWS()
+})
+
+// 监听连接状态变化，失败时显示弹窗
+watch(() => auth.connectionStatus.value, (status) => {
+  if (status === 'failed') {
+    connectionModalVisible.value = true
+  }
 })
 </script>

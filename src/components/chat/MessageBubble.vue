@@ -9,6 +9,7 @@
             v-if="att.mimeType.startsWith('image/')"
             :src="att.data"
             @click="openImagePreview(att.data)"
+            @load="emit('image-loaded')"
             class="max-w-[160px] max-h-[120px] rounded-lg object-cover border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
             :alt="att.name"
           />
@@ -98,7 +99,7 @@ import AudioPlayer from '../ui/AudioPlayer.vue'
 import logoUrl from '../../assets/logo.jpg'
 
 defineProps<{ message: Message }>()
-const emit = defineEmits<{ retry: []; 'open-modal': [action: ActionPayload] }>()
+const emit = defineEmits<{ retry: []; 'open-modal': [action: ActionPayload]; 'image-loaded': [] }>()
 
 const store = useChatStore()
 const projectName = computed(() => store.activeProject()?.name ?? '')

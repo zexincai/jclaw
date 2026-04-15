@@ -110,7 +110,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onUnmounted, watch } from 'vue'
+import { ref, onUnmounted, watch, onMounted } from 'vue'
 import logoUrl from '../assets/logo.jpg'
 import { useAuth } from '../composables/useAuth'
 import { getCaptchaApi, sendSmsCodeApi } from '../api/login'
@@ -197,6 +197,10 @@ async function handleLogin() {
     globalLoading.hide()
   }
 }
+
+onMounted(() => {
+  // 不再需要恢复 token
+})
 
 onUnmounted(() => {
   if (timer) clearInterval(timer)

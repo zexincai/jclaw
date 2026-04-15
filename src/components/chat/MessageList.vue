@@ -12,7 +12,8 @@
 
     <MessageBubble v-for="msg in store.activeSessionMessages()" :key="msg.id" :message="msg"
       @retry="chat.send(msg.content, msg.attachments)"
-      @open-modal="(action) => bridge.openModal(action.modal, action.data)" />
+      @open-modal="(action) => bridge.openModal(action.modal, action.data)"
+      @image-loaded="onImageLoaded" />
   </div>
 </template>
 
@@ -94,4 +95,10 @@ watch(lastMessageContent, async (newVal) => {
     scrollToBottom('auto') // 流向更新使用 'auto' 性能更好，避免平滑滚动带来的延迟感
   }
 })
+
+// 图片加载完成后滚动到底部
+const onImageLoaded = async () => {
+  await nextTick()
+  scrollToBottom('smooth')
+}
 </script>
