@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc -b && vite build",
+	"build:dev": "vue-tsc -b && vite build --mode dev",
+	"build:bug": "vue-tsc -b && vite build --mode bug",
+    "build:test": "vue-tsc -b && vite build --mode test",
     "build:staging": "vue-tsc -b && vite build --mode staging",
     "build:pre": "vue-tsc -b && vite build --mode pre",
     "build:cos": "vue-tsc -b && vite build --mode cos",
