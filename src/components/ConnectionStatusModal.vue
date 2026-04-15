@@ -267,7 +267,7 @@ async function handleTestToken() {
         reject(new Error('连接失败'))
       }
 
-      testWs.onclose = (_event) => {
+      testWs.onclose = () => {
         clearTimeout(timeout)
         if (!challengeReceived) {
           reject(new Error('未收到服务器响应'))
