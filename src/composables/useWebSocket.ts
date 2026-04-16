@@ -3,7 +3,7 @@
  * 所有组件调用 useWebSocket() 返回同一个对象
  */
 import { ref } from "vue";
-import { getDeviceIdentity, base64UrlEncode } from "../utils/device";
+import { getDeviceIdentity, signPayload } from "../utils/device";
 
 type WsStatus = "connecting" | "connected" | "disconnected";
 type EventHandler = (payload: unknown) => void;
@@ -24,16 +24,6 @@ const handlers = new Map<string, Set<EventHandler>>();
 const pendingRequests = new Map<string, (res: unknown) => void>();
 // ────────────────────────────────────────────────────────────────
 
-// ── 设备身份（Ed25519） ──────────────────────────────────────────
-async function signPayload(payload: string): Promise<string> {
-  const { privateKey } = await getDeviceIdentity();
-  const sig = await crypto.subtle.sign(
-    "Ed25519",
-    privateKey,
-    new TextEncoder().encode(payload),
-  );
-  return base64UrlEncode(new Uint8Array(sig));
-}
 // ────────────────────────────────────────────────────────────────
 
 function on(event: string, handler: EventHandler) {

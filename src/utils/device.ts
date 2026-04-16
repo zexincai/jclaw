@@ -1,5 +1,5 @@
 /**
- * 设备标识工具 (Ed25519)
+ * 设备标识工具 (Ed25519 via TweetNaCl)
  * 用于确保设备 ID 与手机号一一对应，并满足 OpenClaw 密钥挑战要求
  *
  * 核心逻辑：
@@ -8,17 +8,21 @@
  * 3. 身份在同一手机号下跨会话持久化。
  */
 
+import nacl from 'tweetnacl';
+// @ts-ignore
+import { sha256 } from 'js-sha256';
+
 const STORAGE_KEY_PREFIX = 'jclaw_device_keypair_v2';
 const LAST_PHONE_KEY = 'jclaw_last_phone';
 
 export interface DeviceIdentity {
-  privateKey: CryptoKey;
+  privateKey: Uint8Array;
   publicKeyBase64: string;
   deviceId: string;
 }
 
 interface StoredKeyPair {
-  privateKeyJwk: JsonWebKey;
+  privateKeyBase64: string;
   publicKeyBase64: string;
   deviceId: string;
 }
@@ -28,8 +32,10 @@ let identityCache: DeviceIdentity | null = null;
 let identityCacheKey = '';
 
 export function base64UrlEncode(data: Uint8Array): string {
-  const base64 = btoa(String.fromCharCode(...data));
-  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+  return btoa(String.fromCharCode(...data))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "");
 }
 
 /**
@@ -38,7 +44,7 @@ export function base64UrlEncode(data: Uint8Array): string {
 export async function getDeviceIdentity(phoneNumber?: string | null): Promise<DeviceIdentity> {
   const finalPhone = phoneNumber || localStorage.getItem(LAST_PHONE_KEY);
   const storageKey = finalPhone ? `${STORAGE_KEY_PREFIX}_${finalPhone}` : STORAGE_KEY_PREFIX;
-  
+
   // 缓存检查
   if (identityCache && identityCacheKey === storageKey) {
     return identityCache;
@@ -47,14 +53,9 @@ export async function getDeviceIdentity(phoneNumber?: string | null): Promise<De
   const stored = localStorage.getItem(storageKey);
   if (stored) {
     try {
-      const { privateKeyJwk, publicKeyBase64, deviceId } = JSON.parse(stored) as StoredKeyPair;
-      const privateKey = await crypto.subtle.importKey(
-        "jwk",
-        privateKeyJwk,
-        { name: "Ed25519" },
-        false,
-        ["sign"],
-      );
+      const { privateKeyBase64, publicKeyBase64, deviceId } = JSON.parse(stored) as StoredKeyPair;
+      // Decode base64 -> Uint8Array (TweetNaCl uses raw bytes)
+      const privateKey = Uint8Array.from(atob(privateKeyBase64), (c) => c.charCodeAt(0));
       const identity = { privateKey, publicKeyBase64, deviceId };
       identityCache = identity;
       identityCacheKey = storageKey;
@@ -62,22 +63,20 @@ export async function getDeviceIdentity(phoneNumber?: string | null): Promise<De
     } catch { /* 损坏则重新生成 */ }
   }
 
-  // 生成新密钥
-  const keyPair = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
-  const pubRaw = await crypto.subtle.exportKey("raw", keyPair.publicKey);
-  const publicKeyBase64 = base64UrlEncode(new Uint8Array(pubRaw));
+  // 生成新密钥 (TweetNaCl uses Ed25519)
+  const keyPair = nacl.sign.keyPair();
+  const publicKeyBase64 = base64UrlEncode(keyPair.publicKey);
 
   // 关键：deviceId 必须是 publicKey 的 sha256 摘要以满足 OpenClaw 校验
-  const hashBuf = await crypto.subtle.digest("SHA-256", pubRaw);
-  const deviceId = Array.from(new Uint8Array(hashBuf))
-    .map((b) => b.toString(16).padStart(2, "0"))
+  const deviceId = sha256.array(keyPair.publicKey)
+    .map((b: number) => b.toString(16).padStart(2, "0"))
     .join("");
 
-  const privateKeyJwk = await crypto.subtle.exportKey("jwk", keyPair.privateKey);
-  const toStore: StoredKeyPair = { privateKeyJwk, publicKeyBase64, deviceId };
+  const privateKeyBase64 = base64UrlEncode(keyPair.secretKey);
+  const toStore: StoredKeyPair = { privateKeyBase64, publicKeyBase64, deviceId };
   localStorage.setItem(storageKey, JSON.stringify(toStore));
 
-  const identity = { privateKey: keyPair.privateKey, publicKeyBase64, deviceId };
+  const identity = { privateKey: keyPair.secretKey, publicKeyBase64, deviceId };
   identityCache = identity;
   identityCacheKey = storageKey;
   return identity;
@@ -96,8 +95,8 @@ export async function getDeviceId(phoneNumber?: string | null): Promise<string> 
  */
 export async function signPayload(payload: string, phoneNumber?: string | null): Promise<string> {
   const identity = await getDeviceIdentity(phoneNumber);
-  const encoder = new TextEncoder();
-  const data = encoder.encode(payload);
-  const signature = await crypto.subtle.sign("Ed25519", identity.privateKey, data);
-  return base64UrlEncode(new Uint8Array(signature));
+  // Ed25519 sign: nacl.sign.detached(message, secretKey)
+  const message = new TextEncoder().encode(payload);
+  const signature = nacl.sign.detached(message, identity.privateKey);
+  return base64UrlEncode(signature);
 }
