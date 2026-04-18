@@ -280,6 +280,7 @@ export function useChat() {
     const role = auth.currentRole.value
     const sysLines = [
       role?.userRolePrompt || '',
+      `operate-port=2,`,
       auth.token.value ? `用户令牌token：${auth.token.value}` : '',
     ].filter(Boolean).join('\n')
     const sysBlock = sysLines ? `<system>\n${sysLines}\n</system>\n\n` : ''
@@ -309,10 +310,14 @@ export function useChat() {
           .filter(a => a.mimeType.startsWith('image/'))
           .map(a => `![${a.name}](${a.data})\n[🖼️ 图片: ${a.name}](${a.data})`)
           .join('\n')
-        const audioMarkdown = attachments
-          .filter(a => a.mimeType.startsWith('audio/'))
-          .map(a => `[🎵 语音消息，URL: ${a.data}](${a.data})`)
-          .join('\n')
+        // 当 text 非空时（即语音转文字路径），音频 URL 不发给 AI
+        // 音频已通过 chatRecordFileList 存档到后端
+        const audioMarkdown = text
+          ? ''
+          : attachments
+              .filter(a => a.mimeType.startsWith('audio/'))
+              .map(a => `[🎵 语音消息，URL: ${a.data}](${a.data})`)
+              .join('\n')
         const fileMarkdown = attachments
           .filter(a => !a.mimeType.startsWith('image/') && !a.mimeType.startsWith('audio/'))
           .map(a => `[📄 文件: ${a.name}](${a.data})`)
