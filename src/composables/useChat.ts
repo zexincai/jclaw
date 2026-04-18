@@ -310,7 +310,7 @@ export function useChat() {
       }
 
       // 通过悟空IM发送消息到 AI 频道
-      wkIM.sendText(textToSend, project.channelId)
+      wkIM.sendText(textToSend)
       userMsg.status = 'done'
       persistMessage(userMsg)
     } catch {

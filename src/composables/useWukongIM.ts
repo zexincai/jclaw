@@ -77,13 +77,14 @@ export function useWukongIM() {
     WKSDK.shared().connectManager.removeConnectStatusListener(_connectStatusListener)
     WKSDK.shared().connectManager.disconnect()
     linkStatus = 0
+    currentUserId = ''
     currentTelephone = ''
     sessionStorage.removeItem('wkLinkStatus')
     status.value = 'disconnected'
   }
 
-  function sendText(text: string, channelId: string) {
-    const wkChannelId = `${channelId}@${currentTelephone}`
+  function sendText(text: string) {
+    const wkChannelId = `${currentTelephone}`
     console.log('[WukongIM] 发送消息 channelId:', wkChannelId, 'text:', text.slice(0, 50))
     const msg = new MessageText(text)
     const channel = new Channel(wkChannelId, ChannelTypePerson)
