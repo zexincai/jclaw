@@ -8,7 +8,7 @@
       <span class="text-sm font-medium text-blue-900 tracking-wider font-mono">{{ formattedTime }}</span>
       <span class="text-xs text-blue-500 ml-2 animate-pulse">正在录音...</span>
     </div>
-    
+
     <div class="flex items-center gap-3">
       <button @click="cancel" class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all" title="取消">
         <X :size="18" />
@@ -30,70 +30,100 @@ const emit = defineEmits<{
   finish: [file: File]
 }>()
 
-const mediaRecorder = ref<MediaRecorder | null>(null)
-const audioChunks = ref<Blob[]>([])
 const recordingTime = ref(0)
-let timer: any = null
+let clockTimer: ReturnType<typeof setInterval> | null = null
+
+// AudioContext 录制 PCM 所需的引用
+let audioCtx: AudioContext | null = null
+let scriptProcessor: ScriptProcessorNode | null = null
+let mediaStream: MediaStream | null = null
+let pcmSamples: Int16Array[] = []
+let cancelled = false
+
+/** 将 Float32 PCM 转为 Int16 */
+function float32ToInt16(input: Float32Array): Int16Array {
+  const out = new Int16Array(input.length)
+  for (let i = 0; i < input.length; i++) {
+    const s = Math.max(-1, Math.min(1, input[i]))
+    out[i] = s < 0 ? s * 0x8000 : s * 0x7FFF
+  }
+  return out
+}
+
+/** 将 Int16 PCM 样本数组打包为 WAV 文件 */
+function buildWav(samples: Int16Array[], sampleRate: number): File {
+  const totalSamples = samples.reduce((n, s) => n + s.length, 0)
+  const dataBytes = totalSamples * 2
+  const buf = new ArrayBuffer(44 + dataBytes)
+  const view = new DataView(buf)
+
+  const writeStr = (off: number, str: string) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(off + i, str.charCodeAt(i))
+  }
+
+  writeStr(0, 'RIFF')
+  view.setUint32(4, 36 + dataBytes, true)
+  writeStr(8, 'WAVE')
+  writeStr(12, 'fmt ')
+  view.setUint32(16, 16, true)         // PCM chunk size
+  view.setUint16(20, 1, true)          // PCM format
+  view.setUint16(22, 1, true)          // mono
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, sampleRate * 2, true)  // byte rate
+  view.setUint16(32, 2, true)          // block align
+  view.setUint16(34, 16, true)         // bits per sample
+  writeStr(36, 'data')
+  view.setUint32(40, dataBytes, true)
+
+  let offset = 44
+  for (const chunk of samples) {
+    for (let i = 0; i < chunk.length; i++, offset += 2) {
+      view.setInt16(offset, chunk[i], true)
+    }
+  }
+
+  return new File([buf], `语音消息_${Date.now()}.wav`, { type: 'audio/wav' })
+}
+
+function stopAll() {
+  scriptProcessor?.disconnect()
+  audioCtx?.close()
+  mediaStream?.getTracks().forEach(t => t.stop())
+  if (clockTimer) clearInterval(clockTimer)
+}
 
 const startRecording = async () => {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    mediaRecorder.value = new MediaRecorder(stream)
-    
-    mediaRecorder.value.ondataavailable = (e) => {
-      if (e.data.size > 0) {
-        audioChunks.value.push(e.data)
-      }
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    audioCtx = new AudioContext({ sampleRate: 16000 })
+    const source = audioCtx.createMediaStreamSource(mediaStream)
+    scriptProcessor = audioCtx.createScriptProcessor(4096, 1, 1)
+
+    scriptProcessor.onaudioprocess = (e) => {
+      if (cancelled) return
+      pcmSamples.push(float32ToInt16(e.inputBuffer.getChannelData(0)))
     }
-    
-    mediaRecorder.value.onstop = () => {
-      const audioBlob = new Blob(audioChunks.value, { type: 'audio/mp3' })
-      let ext = 'mp3'
-      if (MediaRecorder.isTypeSupported('audio/webm')) ext = 'webm'
-      const file = new File([audioBlob], `语音消息_${new Date().getTime()}.${ext}`, { type: `audio/${ext}` })
-      emit('finish', file)
-      stopStream(stream)
-    }
-    
-    mediaRecorder.value.start()
-    
-    timer = setInterval(() => {
-      recordingTime.value += 1
-    }, 1000)
-    
-  } catch (err) {
-    console.error('无法访问麦克风', err)
+
+    source.connect(scriptProcessor)
+    scriptProcessor.connect(audioCtx.destination)
+
+    clockTimer = setInterval(() => { recordingTime.value += 1 }, 1000)
+  } catch {
     alert('无法访问麦克风，请检查系统权限或是否处于 HTTPS/localhost 环境。')
     emit('cancel')
   }
 }
 
-const stopStream = (stream: MediaStream) => {
-  stream.getTracks().forEach(track => {
-    track.stop()
-  })
-}
-
 const cancel = () => {
-  if (mediaRecorder.value && mediaRecorder.value.state !== 'inactive') {
-    // 覆盖 onstop 处理逻辑以防发出 finish 事件
-    mediaRecorder.value.onstop = () => {
-      if (mediaRecorder.value && mediaRecorder.value.stream) {
-         stopStream(mediaRecorder.value.stream)
-      }
-    }
-    mediaRecorder.value.stop()
-  }
+  cancelled = true
+  stopAll()
   emit('cancel')
 }
 
 const finish = () => {
-  if (mediaRecorder.value && mediaRecorder.value.state !== 'inactive') {
-    mediaRecorder.value.stop()
-  } else if (audioChunks.value.length > 0) {
-     // 如果处于暂停或其他状态但有块数据
-     mediaRecorder.value?.stop()
-  }
+  stopAll()
+  const file = buildWav(pcmSamples, 16000)
+  emit('finish', file)
 }
 
 const formattedTime = computed(() => {
@@ -102,16 +132,10 @@ const formattedTime = computed(() => {
   return `${m}:${s}`
 })
 
-onMounted(() => {
-  startRecording()
-})
+onMounted(() => { startRecording() })
 
 onBeforeUnmount(() => {
-  if (timer) clearInterval(timer)
-  if (mediaRecorder.value && mediaRecorder.value.state !== 'inactive') {
-    // 组件销毁前保证录音停止
-    mediaRecorder.value.onstop = () => {}
-    mediaRecorder.value.stop()
-  }
+  cancelled = true
+  stopAll()
 })
 </script>
