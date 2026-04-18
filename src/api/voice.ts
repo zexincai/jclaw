@@ -17,54 +17,100 @@ export async function getAliyunToken(): Promise<{ token: string; appKey: string 
   return res.data
 }
 
-const ASR_ENDPOINT = 'https://nls-gateway-cn-shanghai.aliyuncs.com/stream/v1/asr'
+function randomId(): string {
+  return Array.from({ length: 32 }, () => Math.random().toString(36)[2] ?? '0').join('')
+}
+
+const WS_ENDPOINT = 'wss://nls-gateway-cn-shenzhen.aliyuncs.com/ws/v1'
 const ASR_TIMEOUT_MS = 20_000
 
 /**
- * 将音频文件发送至阿里云 ISI 一句话识别，返回识别文字。
+ * 通过 WebSocket 将录音文件发送至阿里云 ISI 一句话识别，返回识别文字。
  * 识别失败时抛出 Error，识别为空时返回空字符串（由调用方处理）。
  */
-export async function transcribeAudio(
+export function transcribeAudio(
   file: File,
   token: string,
   appKey: string,
   format: string,
 ): Promise<string> {
-  const url = `${ASR_ENDPOINT}?appkey=${encodeURIComponent(appKey)}&format=${format}&sample_rate=16000&enable_punctuation_prediction=true`
+  return new Promise((resolve, reject) => {
+    const taskId = randomId()
+    let result = ''
+    let settled = false
 
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), ASR_TIMEOUT_MS)
-
-  let res: Response
-  try {
-    res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/octet-stream',
-        'Content-Length': String(file.size),
-        'Host': 'nls-gateway-cn-shanghai.aliyuncs.com',
-        'X-NLS-Token': token,
-      },
-      body: file,
-      signal: controller.signal,
-    })
-  } catch (err: unknown) {
-    if (err instanceof Error && err.name === 'AbortError') {
-      throw new Error('语音识别超时，请重试')
+    const done = (val: string) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      ws.close()
+      resolve(val)
     }
-    throw err
-  } finally {
-    clearTimeout(timer)
-  }
 
-  if (!res.ok) {
-    throw new Error(`语音识别请求失败（HTTP ${res.status}）`)
-  }
+    const fail = (msg: string) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      ws.close()
+      reject(new Error(msg))
+    }
 
-  const data = await res.json() as { status: number; result: string; message: string }
-  if (data.status !== 20000000) {
-    throw new Error(data.message || '语音识别失败')
-  }
+    const timer = setTimeout(() => fail('语音识别超时，请重试'), ASR_TIMEOUT_MS)
 
-  return data.result ?? ''
+    const ws = new WebSocket(`${WS_ENDPOINT}?token=${token}`)
+    ws.binaryType = 'arraybuffer'
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({
+        header: {
+          message_id: randomId(),
+          task_id: taskId,
+          namespace: 'SpeechRecognizer',
+          name: 'StartRecognition',
+          appkey: appKey,
+        },
+        payload: {
+          format,
+          sample_rate: 16000,
+          enable_punctuation_prediction: true,
+          enable_inverse_text_normalization: true,
+        },
+      }))
+    }
+
+    ws.onmessage = async (e: MessageEvent) => {
+      let msg: { header: { name: string; status: number; status_text?: string }; payload?: { result?: string } }
+      try { msg = JSON.parse(e.data as string) } catch { return }
+
+      const name = msg.header?.name
+
+      if (name === 'RecognitionStarted') {
+        // 分块发送音频二进制数据
+        const buf = await file.arrayBuffer()
+        const CHUNK = 8192
+        for (let offset = 0; offset < buf.byteLength; offset += CHUNK) {
+          ws.send(buf.slice(offset, offset + CHUNK))
+        }
+        // 发送停止指令
+        ws.send(JSON.stringify({
+          header: {
+            message_id: randomId(),
+            task_id: taskId,
+            namespace: 'SpeechRecognizer',
+            name: 'StopRecognition',
+            appkey: appKey,
+          },
+        }))
+      } else if (name === 'RecognitionResultChanged') {
+        result = msg.payload?.result ?? result
+      } else if (name === 'RecognitionCompleted') {
+        done(msg.payload?.result ?? result)
+      } else if (name === 'TaskFailed') {
+        fail(msg.header?.status_text || '语音识别失败')
+      }
+    }
+
+    ws.onerror = () => fail('语音识别连接失败，请检查网络')
+    ws.onclose = () => { /* settled 状态由 done/fail 管理 */ }
+  })
 }
