@@ -8,7 +8,16 @@
       <div v-if="isRecording" class="transition-all">
         <VoiceRecorder @cancel="isRecording = false" @finish="handleVoiceFinish" />
       </div>
-      
+
+      <div v-else-if="isTranscribing"
+        class="flex items-center gap-3 px-4 bg-blue-50/50 border border-blue-200 rounded-xl h-[56px] shadow-inner mb-2">
+        <svg class="w-4 h-4 text-blue-500 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+        </svg>
+        <span class="text-sm text-blue-700">正在识别语音...</span>
+      </div>
+
       <div v-else :class="[
         'flex flex-col border rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-100 transition-all relative group',
         isWelcome ? 'border-gray-200' : 'border-gray-200 focus-within:border-blue-300',
@@ -80,6 +89,7 @@ import QuickActions from '../ui/QuickActions.vue'
 import FileUpload from '../ui/FileUpload.vue'
 import VoiceRecorder from './VoiceRecorder.vue'
 import { uploadAudio, uploadFile } from '../../utils/upload'
+import { getAliyunToken, transcribeAudio, getAsrFormat } from '../../api/voice'
 
 defineProps<{
   isWelcome?: boolean
@@ -90,6 +100,7 @@ const text = ref('')
 const files = ref<Attachment[]>([])
 const toast = ref('')
 const isRecording = ref(false)
+const isTranscribing = ref(false)
 const isDragging = ref(false)
 const uploadProgress = ref<number | null>(null)
 
@@ -167,18 +178,42 @@ async function submit() {
 }
 
 async function handleVoiceFinish(file: File) {
+  if (isTranscribing.value) return  // 防重入
   isRecording.value = false
+  isTranscribing.value = true
+  toast.value = ''
+
+  // 最小有效录音：< 1KB 视为意外触发
+  if (file.size < 1024) {
+    toast.value = '录音时间太短，请重试'
+    isTranscribing.value = false
+    return
+  }
+
   try {
-    const url = await uploadAudio(file)
-    const voiceAtt: Attachment = {
+    const format = getAsrFormat(file.type)
+    // 并行：上传音频 + 取Token后立即 ASR
+    const [audioUrl, asrText] = await Promise.all([
+      uploadAudio(file),
+      getAliyunToken().then(({ token, appkey }) =>
+        transcribeAudio(file, token, appkey, format)
+      ),
+    ])
+
+    if (!asrText.trim()) {
+      toast.value = '未能识别语音内容，请重试'
+      return
+    }
+
+    await chat.send(asrText, [{
       name: file.name,
       mimeType: file.type,
-      data: url
-    }
-    // 直接单发语音消息
-    await chat.send('', [voiceAtt])
+      data: audioUrl,
+    }])
   } catch (err) {
-    toast.value = err instanceof Error ? err.message : '语音上传失败'
+    toast.value = err instanceof Error ? err.message : '语音识别失败，请重试'
+  } finally {
+    isTranscribing.value = false
   }
 }
 </script>
