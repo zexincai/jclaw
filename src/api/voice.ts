@@ -41,6 +41,8 @@ export async function transcribeAudio(
       method: 'POST',
       headers: {
         'Content-Type': 'application/octet-stream',
+        'Content-Length': String(file.size),
+        'Host': 'nls-gateway-cn-shanghai.aliyuncs.com',
         'X-NLS-Token': token,
       },
       body: file,
