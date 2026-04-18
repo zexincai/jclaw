@@ -104,8 +104,10 @@ const startRecording = async () => {
       pcmSamples.push(float32ToInt16(e.inputBuffer.getChannelData(0)))
     }
 
+    // 路由到哑节点而非扬声器，避免关闭 AudioContext 时触发系统音频设备重置
+    const sink = audioCtx.createMediaStreamDestination()
     source.connect(scriptProcessor)
-    scriptProcessor.connect(audioCtx.destination)
+    scriptProcessor.connect(sink)
 
     clockTimer = setInterval(() => { recordingTime.value += 1 }, 1000)
   } catch {
