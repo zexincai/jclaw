@@ -250,7 +250,20 @@ export function getPersonalUserInfo() {
   return http.get<AjaxResult<EngAgentUserVo>>('/eng/agentUser/personal/info')
 }
 
-// -------- 版本管理 --------
+// -------- IM 长连接 --------
+
+/**
+ * 获取IM长连接地址
+ * @param sourceType 登录来源 1: PC端, 3: 智能体-pc端, 4: 智能体-PC安装版
+ */
+export interface ChatIMLongConnectionVO {
+  modelType: number  // 1: 单机, 2: 集群
+  wsAddr: string
+}
+
+export function getChatIMLongConnection(params: { sourceType: number }) {
+  return http.get<AjaxResult<ChatIMLongConnectionVO>>('/eng/chat/getChatIMLongConnection', params)
+}
 
 /**
  * 版本信息 VO

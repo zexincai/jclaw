@@ -1,0 +1,45 @@
+import { Channel, ChannelInfo, Message, SubscribeContext, SubscribeListener, SubscribeOption, Subscriber, UnsubscribeListener } from "./model";
+import { SubackPacket } from "./proto";
+export declare type SubscriberChangeListener = (channel: Channel) => void;
+export declare type ChannelInfoListener = (channelInfo: ChannelInfo) => void;
+export declare class ChannelManager {
+    channelInfocacheMap: any;
+    requestQueueMap: Map<string, boolean>;
+    listeners: ((channelInfo: ChannelInfo) => void)[];
+    subscribeCacheMap: Map<string, Subscriber[]>;
+    requestSubscribeQueueMap: Map<string, boolean>;
+    subscriberChangeListeners: SubscriberChangeListener[];
+    deleteChannelInfoListeners: ((channelInfo: ChannelInfo) => void)[];
+    subscriberContexts: SubscribeContext[];
+    subscriberContextTick: number;
+    private constructor();
+    private static instance;
+    static shared(): ChannelManager;
+    fetchChannelInfo(channel: Channel): Promise<void>;
+    syncSubscribes(channel: Channel): Promise<void>;
+    getChannelInfo(channel: Channel): ChannelInfo | undefined;
+    setChannleInfoForCache(channelInfo: ChannelInfo): void;
+    deleteChannelInfo(channel: Channel): any;
+    getSubscribes(channel: Channel): Subscriber[];
+    getSubscribeOfMe(channel: Channel): Subscriber | null;
+    addSubscriberChangeListener(listener: SubscriberChangeListener): void;
+    removeSubscriberChangeListener(listener: SubscriberChangeListener): void;
+    addDeleteChannelInfoListener(listener: (channel: ChannelInfo) => void): void;
+    removeDeleteChannelInfoListener(listener: (channel: ChannelInfo) => void): void;
+    addListener(listener: ChannelInfoListener): void;
+    removeListener(listener: ChannelInfoListener): void;
+    notifySubscribeChangeListeners(channel: Channel): void;
+    notifyListeners(channelInfoModel: ChannelInfo): void;
+    notifySubscribeIfNeed(msg: Message): void;
+    onSubscribe(ch: Channel | string, listener: SubscribeListener, ...opts: SubscribeOption[]): void;
+    parseChannelURL(channelUrl: string): {
+        channelID: string;
+        paramMap: Map<any, any>;
+    };
+    onUnsubscribe(ch: Channel | string, listener?: UnsubscribeListener): void;
+    reSubscribe(): void;
+    handleSuback(ack: SubackPacket): void;
+    private getSubscribeContext;
+    private executeSubscribeContext;
+    private sendSubscribe;
+}

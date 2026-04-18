@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(npm run:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Read(//Users/lion/Documents/learn/**)",
+      "Bash(find ~/Documents/learn -maxdepth 3 -name *.js -o -name *.ts -o -name *.vue)",
+      "Bash(find /Users/lion/Documents/learn/app-jw-web/src -name api* -o -name http* -o -name request*)",
+      "Bash(pnpm add:*)",
+      "Bash(sudo cp:*)",
+      "Bash(npx vue-tsc:*)"
     ]
   }
 }
