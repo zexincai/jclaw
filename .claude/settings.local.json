@@ -8,7 +8,12 @@
       "Bash(find /Users/lion/Documents/learn/app-jw-web/src -name api* -o -name http* -o -name request*)",
       "Bash(pnpm add:*)",
       "Bash(sudo cp:*)",
-      "Bash(npx vue-tsc:*)"
+      "Bash(npx vue-tsc:*)",
+      "mcp__web-reader__webReader",
+      "WebFetch(domain:help.aliyun.com)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

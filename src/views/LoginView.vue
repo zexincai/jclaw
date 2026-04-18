@@ -1,5 +1,5 @@
 <template>
-  <div class="login-root flex h-screen overflow-hidden">
+  <div class="flex h-screen overflow-hidden login-root">
     <!-- 噪点纹理叠层 -->
     <div class="noise-overlay" />
 
@@ -13,12 +13,12 @@
       <!-- 品牌内容 -->
       <div class="relative z-10 flex flex-col h-full px-16 py-14">
         <div class="flex items-center gap-3">
-          <img :src="logoUrl" class="w-10 h-10 rounded-xl object-cover shadow-lg shadow-red-900/20 shadow-red-500/20" />
+          <img :src="logoUrl" class="object-cover w-10 h-10 shadow-lg rounded-xl shadow-red-900/20 shadow-red-500/20" />
           <span class="font-mono text-[11px] tracking-[0.3em] uppercase text-white/80">JClaw</span>
         </div>
 
         <!-- 核心标语 -->
-        <div class="flex-1 flex flex-col justify-center">
+        <div class="flex flex-col justify-center flex-1">
           <p class="eyebrow">// Enterprise Intelligence Platform</p>
           <h1 class="brand-heading">
             驱动项目<br />
@@ -41,19 +41,19 @@
     </div>
 
     <!-- 右侧：登录表单 -->
-    <div class="form-panel flex flex-1 items-center justify-center px-10 py-14">
+    <div class="flex items-center justify-center flex-1 px-10 form-panel py-14">
       <div class="w-full max-w-[340px]">
 
         <!-- 移动端 Logo -->
         <div class="flex items-center gap-2.5 mb-12 lg:hidden">
-          <img :src="logoUrl" class="w-9 h-9 rounded-lg object-cover" />
+          <img :src="logoUrl" class="object-cover rounded-lg w-9 h-9" />
           <span class="font-mono text-[11px] tracking-[0.3em] uppercase" style="color: #c8bfaf;">JClaw</span>
         </div>
 
         <!-- 表单头部 -->
         <div class="mb-10">
-          <p class="eyebrow-form">// Secure Access</p>
-          <h2 class="form-heading">欢迎回来</h2>
+          <!-- <p class="eyebrow-form">// Secure Access</p> -->
+          <h2 class="form-heading">建必优</h2>
           <p class="form-sub">使用您的企业账号登录</p>
         </div>
 
@@ -101,9 +101,9 @@
           @refresh="fetchCaptcha" @success="onCaptchaSuccess" />
 
         <!-- 底部标识 -->
-        <p class="mt-12 font-mono text-[10px] tracking-widest" style="color: #4a4540;">
+        <!-- <p class="mt-12 font-mono text-[10px] tracking-widest" style="color: #4a4540;">
           TLS 1.3 加密 · 数据安全保障
-        </p>
+        </p> -->
       </div>
     </div>
   </div>
@@ -358,10 +358,10 @@ onUnmounted(() => {
 
 .form-heading {
   font-family: Georgia, 'Songti SC', STSong, serif;
-  font-size: 40px;
+  font-size: 46px;
   font-weight: 300;
   letter-spacing: -0.02em;
-  color: #1c1813;
+  color: #000000;
   margin-bottom: 6px;
 }
 

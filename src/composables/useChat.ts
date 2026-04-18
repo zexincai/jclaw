@@ -19,6 +19,7 @@ function uuid(): string {
 let initialized = false
 let streamingId: string | null = null
 let currentChatId: number | null = null
+let _store: ReturnType<typeof useChatStore> | null = null
 
 interface IframeNavigateAction {
   isSkip: boolean
@@ -185,10 +186,12 @@ function handleIncomingAIMessage(store: ReturnType<typeof useChatStore>, bridge:
   }
 
   streamingId = null
+  if (_store) _store.aiReplying = false
 }
 
 export function useChat() {
   const store = useChatStore()
+  _store = store
   const wkIM = useWukongIM()
   const auth = useAuth()
 
@@ -258,6 +261,7 @@ export function useChat() {
     }
     store.messages.push(placeholder)
     streamingId = placeholder.id
+    store.aiReplying = true
 
     const session = store.sessions.find(s => s.id === store.activeSessionId)
     const hasContent = text || attachments.length > 0
@@ -307,7 +311,7 @@ export function useChat() {
       if (attachments.length > 0) {
         const imageMarkdown = attachments
           .filter(a => a.mimeType.startsWith('image/'))
-          .map(a => `![${a.name}](${a.data})\n[🖼️ 图片: ${a.name}](${a.data})`)
+          .map(a => `![${a.name}](${a.data})`)
           .join('\n')
         // 当 text 非空时（即语音转文字路径），音频 URL 不发给 AI
         // 音频已通过 chatRecordFileList 存档到后端
@@ -335,6 +339,7 @@ export function useChat() {
       // 移除占位消息
       store.messages = store.messages.filter(m => m.id !== streamingId)
       streamingId = null
+      store.aiReplying = false
     }
   }
 

@@ -70,6 +70,7 @@ export const useChatStore = defineStore("chat", () => {
   const agentRunning = ref(false);
   const usage = ref<UsageStats | null>(null);
   const switchingRole = ref(false); // 切换角色加载中
+  const aiReplying = ref(false); // AI 正在回复中（禁止切换角色）
 
   function activeProject() {
     return projects.value.find((p) => p.id === activeProjectId.value) ?? null;
@@ -99,6 +100,7 @@ export const useChatStore = defineStore("chat", () => {
     agentRunning,
     usage,
     switchingRole,
+    aiReplying,
     activeProject,
     activeSessionMessages,
     sessionsByProject,
