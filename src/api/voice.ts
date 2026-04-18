@@ -18,7 +18,12 @@ export async function getAliyunToken(): Promise<{ token: string; appKey: string 
 }
 
 function randomId(): string {
-  return Array.from({ length: 32 }, () => Math.random().toString(36)[2] ?? '0').join('')
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const arr = new Uint8Array(16)
+    crypto.getRandomValues(arr)
+    return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('')
+  }
+  return Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('')
 }
 
 const WS_ENDPOINT = 'wss://nls-gateway-cn-shenzhen.aliyuncs.com/ws/v1'
