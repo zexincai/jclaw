@@ -619,7 +619,7 @@ export function switchAnewLogin(params: SwitchAccountAnewLogin) {
  * 提交实名认证信息
  */
 export function noTokenFaceSwiping(params: IdentityAuthParams) {
-  return http.post<IdentityAuthVo>('/eng/enterprise/actualAuth', params)
+  return http.post<IdentityAuthVo>('/eng/enterprise/personActualAuth', params)
 }
 
 /**
