@@ -5,6 +5,14 @@
 import { ref } from "vue";
 import { getDeviceIdentity, signPayload } from "../utils/device";
 
+function uuid(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16)
+  })
+}
+
 type WsStatus = "connecting" | "connected" | "disconnected";
 type EventHandler = (payload: unknown) => void;
 
@@ -67,7 +75,7 @@ async function sendConnectFrame(nonce: string = "") {
   const signature = await signPayload(payload);
   send({
     type: "req",
-    id: crypto.randomUUID(),
+    id: uuid(),
     method: "connect",
     params: {
       minProtocol: 3,
@@ -97,7 +105,7 @@ async function sendConnectFrame(nonce: string = "") {
 
 function request(method: string, params: object = {}): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    const id = crypto.randomUUID();
+    const id = uuid();
     pendingRequests.set(id, resolve);
     send({ type: "req", id, method, params });
     setTimeout(() => {

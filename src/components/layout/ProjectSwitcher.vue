@@ -8,11 +8,12 @@
         <div v-if="store.activeProjectId === project.id"
           class="absolute left-0 w-1.5 h-8 bg-red-500 rounded-r-full transition-all duration-300" />
 
-        <button @click="handleSwitch(project.id)" :title="project.name" :class="[
+        <button @click="handleSwitch(project.id)" :title="store.aiReplying && store.activeProjectId !== project.id ? 'AI 回复中，请稍候' : project.name" :disabled="store.aiReplying && store.activeProjectId !== project.id" :class="[
           'w-12 h-12 rounded-[18px] flex items-center justify-center text-sm font-bold transition-all duration-200 hover:rounded-[14px] overflow-hidden border',
           store.activeProjectId === project.id
             ? 'text-white shadow-lg shadow-black/10 scale-105 ring-2 ring-red-500 ring-offset-2 border-transparent'
             : 'text-white opacity-90 hover:opacity-100 hover:scale-105 border-blue-100',
+          store.aiReplying && store.activeProjectId !== project.id ? 'cursor-not-allowed opacity-40' : '',
           !getAvatarByOrgType(project.orgType) && !project.avatar ? BG_COLORS[idx % BG_COLORS.length] : 'bg-white'
         ]">
           <img v-if="getAvatarByOrgType(project.orgType)" :src="getAvatarByOrgType(project.orgType)!"
@@ -30,6 +31,7 @@ import { useChatStore } from '../../stores/chat'
 import { useProjects } from '../../composables/useProjects'
 import { useChat } from '../../composables/useChat'
 import { useAuth } from '../../composables/useAuth'
+import { useIframeBridge } from '../../composables/useIframeBridge'
 import { getAvatarByOrgType } from '../../utils/avatar'
 
 const BG_COLORS = [
@@ -47,6 +49,7 @@ const store = useChatStore()
 const { setActive } = useProjects()
 const chat = useChat()
 const auth = useAuth()
+const { closePanel } = useIframeBridge()
 
 function initial(name: string) {
   return name.slice(0, 1).toUpperCase()
@@ -54,8 +57,13 @@ function initial(name: string) {
 
 async function handleSwitch(projectId: string) {
   if (store.activeProjectId === projectId) return
+  if (store.aiReplying) {
+    alert('AI 正在回复中，请等待回复完成后再切换角色')
+    return
+  }
 
   store.switchingRole = true
+  closePanel()
   try {
     // 切换前清空旧用户的消息和会话状态，避免显示上个用户的聊天记录
     store.messages = []

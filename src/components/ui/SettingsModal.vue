@@ -160,7 +160,7 @@ import { Settings, BarChart2, Info, UserCircle } from 'lucide-vue-next'
 import { useChatStore } from '../../stores/chat'
 import { useAuth } from '../../composables/useAuth'
 import { getPersonalUserInfo, getMobileVersionInfo, type EngAgentUserVo, type EngVersionVo } from '../../api/agent'
-import logoUrl from '../../assets/logo.jpg'
+import logoUrl from '../../assets/logo.png'
 
 const emit = defineEmits<{ close: [] }>()
 const store = useChatStore()

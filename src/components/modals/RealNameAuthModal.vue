@@ -5,14 +5,14 @@
     @click.self="() => {}"
   >
     <!-- 弹窗主体 -->
-    <div class="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden animate-modal-in">
+    <div class="relative w-full max-w-md overflow-hidden bg-white shadow-2xl rounded-2xl animate-modal-in">
       <!-- 顶部渐变装饰 -->
       <div class="h-1.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500" />
 
       <!-- 标题区 -->
-      <div class="px-7 pt-6 pb-4">
+      <div class="pt-6 pb-4 px-7">
         <div class="flex items-center gap-3 mb-1">
-          <div class="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
+          <div class="flex items-center justify-center w-9 h-9 rounded-xl bg-indigo-50 shrink-0">
             <ShieldCheck class="text-indigo-600" :size="20" />
           </div>
           <div>
@@ -45,7 +45,7 @@
                 step === i + 1 ? 'text-indigo-600' : step > i + 1 ? 'text-green-600' : 'text-gray-400'
               ]"
             >{{ s }}</span>
-            <div v-if="i < steps.length - 1" class="w-8 h-px bg-gray-200 mx-1" />
+            <div v-if="i < steps.length - 1" class="w-8 h-px mx-1 bg-gray-200" />
           </div>
         </div>
       </div>
@@ -80,7 +80,7 @@
                   <option value="CRED_PSN_CH_TWCARD">台湾来往大陆通行证</option>
                   <option value="CRED_PSN_PASSPORT">护照</option>
                 </select>
-                <ChevronDown class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" :size="15" />
+                <ChevronDown class="absolute text-gray-400 -translate-y-1/2 pointer-events-none right-3 top-1/2" :size="15" />
               </div>
             </div>
 
@@ -95,16 +95,52 @@
               />
             </div>
 
-            <!-- 手机号 (只读) -->
+            <!-- 手机号 (可编辑) -->
             <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1.5">手机号码</label>
-              <input
-                :value="telephone"
-                type="text"
-                disabled
-                class="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-100 bg-gray-50 text-gray-500 cursor-not-allowed"
-              />
+              <label class="block text-xs font-medium text-gray-600 mb-1.5">手机号码 <span class="text-red-400">*</span></label>
+              <div class="flex items-center overflow-hidden transition-all bg-white border border-gray-200 rounded-xl focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100">
+                <span class="px-3 text-xs text-gray-400 border-r border-gray-200 h-full flex items-center py-2.5 shrink-0">+86</span>
+                <input
+                  v-model.trim="form.telephone"
+                  type="tel"
+                  maxlength="11"
+                  placeholder="请输入手机号码"
+                  class="flex-1 px-3 py-2.5 text-sm outline-none bg-transparent"
+                />
+              </div>
             </div>
+
+            <!-- 短信验证码 -->
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1.5">短信验证码 <span class="text-red-400">*</span></label>
+              <div class="flex items-center gap-2">
+                <input
+                  v-model.trim="form.smsCode"
+                  type="text"
+                  maxlength="6"
+                  placeholder="请输入验证码"
+                  class="flex-1 px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all placeholder-gray-300"
+                />
+                <button
+                  type="button"
+                  :disabled="!!smsCountdown || !form.telephone || sendingSms"
+                  @click="handleGetSmsCode"
+                  class="shrink-0 px-3 py-2.5 text-xs rounded-xl border border-indigo-200 text-indigo-600 font-medium transition-all hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+                >
+                  {{ smsCountdown ? `${smsCountdown}s` : (sendingSms ? '发送中' : '获取验证码') }}
+                </button>
+              </div>
+            </div>
+
+            <!-- 滑块验证码 -->
+            <SliderCaptcha
+              ref="sliderCaptchaRef"
+              :visible="captchaVisible"
+              :captcha-data="captchaData"
+              @close="captchaVisible = false"
+              @refresh="fetchCaptcha"
+              @success="onCaptchaSuccess"
+            />
 
             <!-- 错误提示 -->
             <p v-if="errorMsg" class="text-xs text-red-500 flex items-center gap-1.5">
@@ -126,13 +162,13 @@
         <!-- Step 2: 扫码人脸认证 -->
         <transition name="fade-slide" mode="out-in">
           <div v-if="step === 2" key="step2" class="flex flex-col items-center py-2">
-            <p class="text-sm text-gray-500 mb-1 text-center">
-              请使用 <span class="font-medium text-gray-700">微信</span> 扫一扫
+            <p class="mb-1 text-sm text-center text-gray-500">
+              请使用 <span class="font-medium text-gray-700">系统APP或者微信</span> 扫一扫
             </p>
-            <p class="text-xs text-gray-400 mb-4 text-center">完成个人实名认证</p>
+            <p class="mb-4 text-xs text-center text-gray-400">完成企业和个人实名认证</p>
 
             <!-- 二维码容器 -->
-            <div class="relative p-3 rounded-2xl border-2 border-dashed border-indigo-200 bg-indigo-50">
+            <div class="relative p-3 border-2 border-indigo-200 border-dashed rounded-2xl bg-indigo-50">
               <div ref="qrContainer" id="realname-qrcode" class="w-[220px] h-[220px] flex items-center justify-center">
                 <!-- 加载中占位 -->
                 <div v-if="qrLoading" class="flex flex-col items-center gap-2 text-indigo-400">
@@ -141,24 +177,24 @@
                 </div>
               </div>
               <!-- 扫码成功遮罩 -->
-              <div v-if="qrScanned" class="absolute inset-0 rounded-2xl bg-white/95 flex flex-col items-center justify-center gap-2">
-                <div class="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+              <div v-if="qrScanned" class="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-2xl bg-white/95">
+                <div class="flex items-center justify-center w-12 h-12 bg-green-100 rounded-full">
                   <CheckCircle2 class="text-green-500" :size="28" />
                 </div>
                 <p class="text-sm font-medium text-gray-700">扫描成功</p>
                 <p class="text-xs text-gray-400">请在手机上根据提示操作</p>
               </div>
               <!-- 过期遮罩 -->
-              <div v-if="qrExpired" class="absolute inset-0 rounded-2xl bg-white/95 flex flex-col items-center justify-center gap-2">
-                <div class="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
+              <div v-if="qrExpired" class="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-2xl bg-white/95">
+                <div class="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full">
                   <RefreshCcw class="text-gray-500" :size="22" />
                 </div>
                 <p class="text-sm font-medium text-gray-700">二维码已过期</p>
-                <button @click="refreshQR" class="text-xs text-indigo-600 hover:text-indigo-700 font-medium">点击刷新</button>
+                <button @click="refreshQR" class="text-xs font-medium text-indigo-600 hover:text-indigo-700">点击刷新</button>
               </div>
             </div>
 
-            <p class="text-xs text-gray-400 mt-4 text-center">二维码有效期约 5 分钟</p>
+            <p class="mt-4 text-xs text-center text-gray-400">二维码有效期约 5 分钟</p>
 
             <!-- 错误提示 -->
             <p v-if="errorMsg" class="text-xs text-red-500 flex items-center gap-1.5 mt-3">
@@ -168,7 +204,7 @@
             <!-- 返回修改信息 -->
             <button
               @click="backToForm"
-              class="mt-4 text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 transition-colors"
+              class="flex items-center gap-1 mt-4 text-xs text-gray-400 transition-colors hover:text-gray-600"
             >
               <ArrowLeft :size="12" />返回修改信息
             </button>
@@ -178,12 +214,12 @@
         <!-- Step 3: 认证成功 -->
         <transition name="fade-slide" mode="out-in">
           <div v-if="step === 3" key="step3" class="flex flex-col items-center py-6">
-            <div class="w-20 h-20 rounded-full bg-green-50 flex items-center justify-center mb-5 animate-bounce-in">
+            <div class="flex items-center justify-center w-20 h-20 mb-5 rounded-full bg-green-50 animate-bounce-in">
               <CheckCircle2 class="text-green-500" :size="44" />
             </div>
-            <h3 class="text-base font-semibold text-gray-900 mb-2">实名认证成功！</h3>
-            <p class="text-sm text-gray-500 text-center">您已完成实名认证，正在为您进入系统...</p>
-            <div class="mt-6 flex items-center gap-2 text-indigo-500">
+            <h3 class="mb-2 text-base font-semibold text-gray-900">实名认证成功！</h3>
+            <p class="text-sm text-center text-gray-500">您已完成实名认证，正在为您进入系统...</p>
+            <div class="flex items-center gap-2 mt-6 text-indigo-500">
               <Loader2 class="animate-spin" :size="16" />
               <span class="text-sm">加载中</span>
             </div>
@@ -193,11 +229,11 @@
         <!-- Step 4: 认证失败 -->
         <transition name="fade-slide" mode="out-in">
           <div v-if="step === 4" key="step4" class="flex flex-col items-center py-6">
-            <div class="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center mb-5">
+            <div class="flex items-center justify-center w-20 h-20 mb-5 rounded-full bg-red-50">
               <XCircle class="text-red-400" :size="44" />
             </div>
-            <h3 class="text-base font-semibold text-gray-900 mb-2">认证失败</h3>
-            <p class="text-sm text-gray-500 text-center mb-6">{{ failMsg || '人脸认证未通过，请重新尝试' }}</p>
+            <h3 class="mb-2 text-base font-semibold text-gray-900">认证失败</h3>
+            <p class="mb-6 text-sm text-center text-gray-500">{{ failMsg || '人脸认证未通过，请重新尝试' }}</p>
             <button
               @click="retry"
               class="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-all shadow-lg shadow-indigo-200"
@@ -219,7 +255,9 @@ import {
   ShieldCheck, Check, ChevronDown, AlertCircle, Loader2,
   CheckCircle2, RefreshCcw, ArrowLeft, XCircle
 } from 'lucide-vue-next'
-import { noTokenFaceSwiping, userFaceDistinguishState, addQRCode } from '../../api/auth'
+import { noTokenFaceSwiping, userFaceDistinguishState, addQRCode, queryQRCode } from '../../api/auth'
+import { getCaptchaApi, sendSmsCodeApi } from '../../api/login'
+import SliderCaptcha from '../SliderCaptcha.vue'
 
 const props = defineProps<{
   telephone: string
@@ -237,7 +275,62 @@ const form = ref({
   name: '',
   certType: '',
   certNo: '',
+  telephone: props.telephone,
+  smsCode: '',
 })
+
+// ── SMS 验证码 ─────────────────────────────────────────────────────
+const sliderCaptchaRef = ref<InstanceType<typeof SliderCaptcha> | null>(null)
+const captchaVisible = ref(false)
+const captchaData = ref<any>(null)
+const smsCountdown = ref(0)
+const sendingSms = ref(false)
+const smsUuid = ref('')
+let smsTimer: ReturnType<typeof setInterval> | null = null
+
+async function fetchCaptcha() {
+  try {
+    captchaData.value = await getCaptchaApi()
+  } catch (e: any) {
+    errorMsg.value = e.message || '获取图形验证码失败'
+  }
+}
+
+async function handleGetSmsCode() {
+  if (!form.value.telephone) return
+  errorMsg.value = ''
+  await fetchCaptcha()
+  captchaVisible.value = true
+}
+
+async function onCaptchaSuccess(distance: number) {
+  sendingSms.value = true
+  captchaVisible.value = false
+  try {
+    const res = await sendSmsCodeApi(form.value.telephone, captchaData.value.uuid, distance)
+    smsUuid.value = (res as any).data
+    startSmsCountdown()
+  } catch (e: any) {
+    errorMsg.value = e.message || '发送验证码失败'
+    sliderCaptchaRef.value?.reset()
+    await fetchCaptcha()
+    captchaVisible.value = true
+  } finally {
+    sendingSms.value = false
+  }
+}
+
+function startSmsCountdown() {
+  smsCountdown.value = 60
+  smsTimer = setInterval(() => {
+    if (smsCountdown.value > 0) {
+      smsCountdown.value--
+    } else {
+      clearInterval(smsTimer!)
+      smsTimer = null
+    }
+  }, 1000)
+}
 
 const errorMsg = ref('')
 const failMsg = ref('')
@@ -250,14 +343,17 @@ const qrExpired = ref(false)
 
 let qrInstance: any = null
 let pollTimer: ReturnType<typeof setInterval> | null = null
+let qrScanTimer: ReturnType<typeof setInterval> | null = null
 let expireTimer: ReturnType<typeof setTimeout> | null = null
 
 let authUrl = ''
 let faceDistinguishId = ''
+let currentUnique = ''
 
 // ── Helpers ────────────────────────────────────────────────────────
 function clearTimers() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+  if (qrScanTimer) { clearInterval(qrScanTimer); qrScanTimer = null }
   if (expireTimer) { clearTimeout(expireTimer); expireTimer = null }
 }
 
@@ -269,14 +365,30 @@ async function submitInfo() {
   if (!form.value.certType) return (errorMsg.value = '请选择证件类型')
   if (!form.value.certNo) return (errorMsg.value = '请输入证件号码')
 
-  // 身份证格式校验
-  if (form.value.certType === 'CRED_PSN_CH_IDCARD') {
+  // 证件号码格式校验
+  const certNo = form.value.certNo
+  const certType = form.value.certType
+  if (certType === 'CRED_PSN_CH_IDCARD') {
     const reg18 = /^[1-9]\d{5}(18|19|([23]\d))\d{2}((0[1-9])|(10|11|12))(([0-2][1-9])|10|20|30|31)\d{3}[0-9Xx]$/
     const reg15 = /^[1-9]\d{5}\d{2}((0[1-9])|(10|11|12))(([0-2][1-9])|10|20|30|31)\d{2}[0-9Xx]$/
-    if (!reg18.test(form.value.certNo) && !reg15.test(form.value.certNo)) {
+    if (!reg18.test(certNo) && !reg15.test(certNo))
       return (errorMsg.value = '请输入正确的身份证号码')
-    }
+  } else if (certType === 'CRED_PSN_CH_HONGKONG') {
+    if (!/^[HMhm]\d{8}$/.test(certNo))
+      return (errorMsg.value = '请输入正确的港澳通行证号码（H/M开头+8位数字）')
+  } else if (certType === 'CRED_PSN_CH_MACAO') {
+    if (!/^[MXEme]\d{7,8}$/.test(certNo))
+      return (errorMsg.value = '请输入正确的澳门通行证号码')
+  } else if (certType === 'CRED_PSN_CH_TWCARD') {
+    if (!/^[a-zA-Z][0-9]{9}$/.test(certNo))
+      return (errorMsg.value = '请输入正确的台湾通行证号码（1位字母+9位数字）')
+  } else if (certType === 'CRED_PSN_PASSPORT') {
+    if (!/^[a-zA-Z0-9]{6,16}$/.test(certNo))
+      return (errorMsg.value = '请输入正确的护照号码')
   }
+
+  if (!/^[1][3-9]\d{9}$/.test(form.value.telephone)) return (errorMsg.value = '请输入正确的手机号码')
+  if (!form.value.smsCode) return (errorMsg.value = '请输入短信验证码')
 
   submitting.value = true
   try {
@@ -285,9 +397,11 @@ async function submitInfo() {
       certType: form.value.certType,
       cardNum: form.value.certNo,
       certNo: form.value.certNo,
-      telephone: props.telephone,
+      telephone: form.value.telephone,
       distinguishType: '1',
       type: 0,
+      uuid: smsUuid.value,
+      code: form.value.smsCode,
     })
     const data = (res as any).data
     authUrl = data.faceSwipingUrl
@@ -296,6 +410,7 @@ async function submitInfo() {
     step.value = 2
     await nextTick()
     await generateQR()
+    startQRScanPolling()
     startPolling()
     startExpireTimer()
   } catch (e: any) {
@@ -313,10 +428,10 @@ async function generateQR() {
 
   try {
     const res = await addQRCode()
-    const unique = (res as any).data
+    currentUnique = (res as any).data
     const location = window.location.origin
     const data = encodeURIComponent(JSON.stringify(authUrl))
-    const text = `${location}/h5/#/pages/h5/scanCodeTran?type=2&unique=${unique}&data=${data}`
+    const text = `${location}/h5/#/pages/h5/scanCodeTran?type=2&unique=${currentUnique}&data=${data}`
 
     await nextTick()
     const el = document.getElementById('realname-qrcode')
@@ -336,23 +451,33 @@ async function generateQR() {
   }
 }
 
-// ── 轮询认证结果 ──────────────────────────────────────────────────
+// ── 轮询二维码扫码状态 (queryQRCode: res.data===1 表示已扫) ────────
+function startQRScanPolling() {
+  qrScanTimer = setInterval(async () => {
+    try {
+      const res = await queryQRCode(currentUnique)
+      if ((res as any).data === 1) {
+        clearInterval(qrScanTimer!)
+        qrScanTimer = null
+        qrScanned.value = true
+      }
+    } catch {
+      // 网络错误不中断
+    }
+  }, 5000)
+}
+
+// ── 轮询认证结果 (judgeBusinessSuccess: status 2=成功 3=失败) ──────
 function startPolling() {
-  clearTimers()
   pollTimer = setInterval(async () => {
     try {
       const res = await userFaceDistinguishState({ distinguishType: 0, pkId: faceDistinguishId })
       const data = (res as any).data
       if (data.status === 2) {
-        // 成功
         clearTimers()
         step.value = 3
         setTimeout(() => emit('success'), 1500)
-      } else if (data.status === 1) {
-        // 已扫码未确认
-        qrScanned.value = true
       } else if (data.status === 3) {
-        // 失败
         clearTimers()
         failMsg.value = data.errorInfo || '人脸认证未通过'
         step.value = 4
@@ -374,7 +499,9 @@ function startExpireTimer() {
 // ── 刷新二维码 ────────────────────────────────────────────────────
 async function refreshQR() {
   qrExpired.value = false
+  qrScanned.value = false
   await generateQR()
+  startQRScanPolling()
   startPolling()
   startExpireTimer()
 }
@@ -395,7 +522,10 @@ function retry() {
 }
 
 // ── 清理 ──────────────────────────────────────────────────────────
-onUnmounted(() => clearTimers())
+onUnmounted(() => {
+  clearTimers()
+  if (smsTimer) clearInterval(smsTimer)
+})
 </script>
 
 <style scoped>

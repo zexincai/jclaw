@@ -96,7 +96,7 @@ import ActionCard from './ActionCard.vue'
 import ActionTagButton from './ActionTagButton.vue'
 import MarkdownContent from './MarkdownContent.vue'
 import AudioPlayer from '../ui/AudioPlayer.vue'
-import logoUrl from '../../assets/logo.jpg'
+import logoUrl from '../../assets/logo.png'
 
 defineProps<{ message: Message }>()
 const emit = defineEmits<{ retry: []; 'open-modal': [action: ActionPayload]; 'image-loaded': [] }>()

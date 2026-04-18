@@ -96,6 +96,20 @@ watch(lastMessageContent, async (newVal) => {
   }
 })
 
+// 监听最后一条消息状态变化，回复完成时滚动到底部
+const lastMessageStatus = computed(() => {
+  const msgs = store.activeSessionMessages()
+  if (msgs.length === 0) return ''
+  return msgs[msgs.length - 1].status
+})
+
+watch(lastMessageStatus, async (newStatus) => {
+  if (newStatus === 'done') {
+    await nextTick()
+    scrollToBottom('smooth')
+  }
+})
+
 // 图片加载完成后滚动到底部
 const onImageLoaded = async () => {
   await nextTick()

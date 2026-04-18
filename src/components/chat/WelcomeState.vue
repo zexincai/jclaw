@@ -108,7 +108,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { ListTodo, FileEdit, Search, BarChart2, ChevronRight, Plus, Trash2 } from 'lucide-vue-next'
-import logoUrl from '../../assets/logo.jpg'
+import logoUrl from '../../assets/logo.png'
 import InputBar from './InputBar.vue'
 import { useChat } from '../../composables/useChat'
 import {
