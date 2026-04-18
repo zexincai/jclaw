@@ -8,6 +8,14 @@ import { useAuth } from './useAuth'
 import { useIframeBridge } from './useIframeBridge'
 import { addChat, addChatRecordData, deleteAgent, getUserAccountChatList, chatRecordDataSearchPage } from '../api/agent'
 
+function uuid(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16)
+  })
+}
+
 let initialized = false
 let streamingId: string | null = null
 let currentChatId: number | null = null
@@ -19,30 +27,31 @@ interface IframeNavigateAction {
   menuButtonCode: string
 }
 
-function extractAction(content: string): ActionPayload | undefined {
+function parseJsonBlock(content: string): Record<string, unknown> | undefined {
   const match = content.match(/```json\s*([\s\S]*?)```/)
   if (!match) return undefined
-  try {
-    const parsed = JSON.parse(match[1])
-    if (parsed.action === 'open_modal') return parsed as ActionPayload
-  } catch { /* ignore */ }
-  return undefined
+  try { return JSON.parse(match[1]) } catch { return undefined }
+}
+
+function extractAction(content: string): ActionPayload | undefined {
+  const parsed = parseJsonBlock(content)
+  return parsed?.action === 'open_modal' ? parsed as unknown as ActionPayload : undefined
 }
 
 function extractIframeAction(content: string): IframeNavigateAction | undefined {
-  const match = content.match(/```json\s*([\s\S]*?)```/)
-  if (!match) return undefined
-  try {
-    const parsed = JSON.parse(match[1])
-    if (typeof parsed.isSkip === 'boolean' && parsed.menuPath) {
-      return parsed as IframeNavigateAction
-    }
-  } catch { /* ignore */ }
+  const parsed = parseJsonBlock(content)
+  if (parsed && typeof parsed.isSkip === 'boolean' && parsed.menuPath) {
+    return parsed as unknown as IframeNavigateAction
+  }
   return undefined
 }
 
 function stripActionJson(content: string): string {
   return content.replace(/```json[\s\S]*?```/g, '').trim()
+}
+
+function stripSystemBlock(content: string): string {
+  return content.replace(/<system>[\s\S]*?<\/system>\n*/gi, '').trim()
 }
 
 function stripThinkingTags(text: string): string {
@@ -90,9 +99,9 @@ function stripAllActionTags(content: string): string {
 function extractText(message: unknown): string {
   if (!message || typeof message !== 'object') return ''
   const msg = message as { content?: unknown; text?: string }
-  // WKSDK MessageText 的内容在 content.content 或 text
   const content = msg.content as any
   if (content && typeof content.content === 'string') return content.content
+  if (content && typeof content.text === 'string') return content.text
   if (typeof content === 'string') return content
   if (typeof msg.text === 'string') return msg.text
   return ''
@@ -116,7 +125,7 @@ function handleIncomingAIMessage(store: ReturnType<typeof useChatStore>, bridge:
   const thinking = extractThinking(rawText)
   const text = stripThinkingTags(rawText)
 
-  const msgId = streamingId || crypto.randomUUID()
+  const msgId = streamingId || uuid()
 
   // 平台 Action 标签
   const platformAction = extractPlatformAction(text)
@@ -131,11 +140,9 @@ function handleIncomingAIMessage(store: ReturnType<typeof useChatStore>, bridge:
     role: 'assistant',
     content: platformAction
       ? stripAllActionTags(text)
-      : iframeAction
+      : (iframeAction || action)
         ? stripActionJson(text)
-        : action
-          ? stripActionJson(text)
-          : text,
+        : text,
     thinking: thinking || undefined,
     status: 'done',
     createdAt: new Date().toISOString(),
@@ -193,17 +200,14 @@ export function useChat() {
     // 监听来自悟空IM的消息
     wkIM.onMessage((rawMsg: unknown) => {
       const msg = rawMsg as { fromUID?: string; contentType?: number; content?: unknown }
-      console.log('[Chat] 收到消息 fromUID:', msg.fromUID, 'contentType:', msg.contentType)
       const currentUser = auth.currentRole.value
-      if (!currentUser) { console.log('[Chat] 过滤: 无当前用户'); return }
-      const myUid = `${currentUser.userId}`
-      if (msg.fromUID === myUid) { console.log('[Chat] 过滤: 自己发的消息'); return }
-      if (msg.contentType !== 1 && msg.contentType !== 103) { console.log('[Chat] 过滤: contentType不匹配', msg.contentType); return }
+      if (!currentUser) return
+      if (msg.fromUID === `${currentUser.userId}`) return
+      if (msg.contentType !== 1 && msg.contentType !== 103) return
 
       const text = extractText(rawMsg)
-      if (!text) { console.log('[Chat] 过滤: 提取文本为空'); return }
+      if (!text) return
 
-      console.log('[Chat] AI消息入队:', text.slice(0, 50))
       handleIncomingAIMessage(store, bridge, text)
     })
   }
@@ -216,7 +220,7 @@ export function useChat() {
     const project = store.activeProject()
     if (!project) return
     const session: Session = {
-      id: crypto.randomUUID(),
+      id: uuid(),
       projectId: project.id,
       title: '新对话',
       createdAt: new Date().toISOString(),
@@ -231,7 +235,7 @@ export function useChat() {
     ensureSession()
 
     const userMsg: Message = {
-      id: crypto.randomUUID(),
+      id: uuid(),
       sessionId: store.activeSessionId,
       role: 'user',
       content: text,
@@ -244,7 +248,7 @@ export function useChat() {
 
     // 创建占位 AI 消息（等待响应）
     const placeholder: Message = {
-      id: crypto.randomUUID(),
+      id: uuid(),
       sessionId: store.activeSessionId,
       role: 'assistant',
       content: '',
@@ -272,11 +276,19 @@ export function useChat() {
     }
     currentChatId = session?.backendId ?? null
 
+    // 构建系统上下文（token + 角色系统提示），对 IM 和后端接口共用
+    const role = auth.currentRole.value
+    const sysLines = [
+      role?.userRolePrompt || '',
+      auth.token.value ? `用户令牌token：${auth.token.value}` : '',
+    ].filter(Boolean).join('\n')
+    const sysBlock = sysLines ? `<system>\n${sysLines}\n</system>\n\n` : ''
+
     // 保存用户消息到后端
     if (currentChatId && hasContent) {
       addChatRecordData({
         fkChatId: currentChatId,
-        chatContent: text || '',
+        chatContent: sysBlock + (text || ''),
         chatObject: '0',
         ...(attachments.length ? {
           chatRecordFileList: attachments.map(a => {
@@ -310,7 +322,7 @@ export function useChat() {
       }
 
       // 通过悟空IM发送消息到 AI 频道
-      wkIM.sendText(textToSend)
+      wkIM.sendText(sysBlock + textToSend)
       userMsg.status = 'done'
       persistMessage(userMsg)
     } catch {
@@ -345,7 +357,7 @@ export function useChat() {
             })
           }
 
-          const rawContent = r.chatContent || ''
+          const rawContent = stripSystemBlock(r.chatContent || '')
           const isAssistant = String(r.chatObject) === '1'
           let platformAction: PlatformAction | undefined
           let cleanedContent = rawContent

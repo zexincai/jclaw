@@ -127,24 +127,14 @@ function onAuthSuccess() {
 }
 
 watch(bridge.isVisible, v => {
-  if (v) {
-    sidePanelOpen.value = false
-  } else {
-    sidePanelOpen.value = true
-  }
+  sidePanelOpen.value = !v
 })
 
-watch(wkIM.status, s => {
-  store.wsStatus = s
-  if (s === 'connected') {
-    store.wsMaxRetries = false
-    pairingModalVisible.value = false
-  }
-})
-
-// 连接成功后加载会话
 watch(wkIM.status, async (s) => {
+  store.wsStatus = s
   if (s !== 'connected') return
+  store.wsMaxRetries = false
+  pairingModalVisible.value = false
   if (store.activeSessionId) return
   const project = store.activeProject()
   if (!project) return
@@ -166,15 +156,9 @@ function testIframe() {
     operateType: 0
   }
   const iframe = bridge.iframeRef.value
-  if (!iframe?.contentWindow) {
-    // alert('iframe 未加载，无法测试通信')
-    return
-  }
+  if (!iframe?.contentWindow) return
   bridge.dispatchAction(testMsg)
-  // const origin = (import.meta.env.VITE_BUSINESS_SYSTEM_ORIGIN as string | undefined) || '*'
-  // iframe.contentWindow.postMessage(testMsg, origin)
   bridge.isVisible.value = true
-  // alert(`已发送测试消息：\n${JSON.stringify(testMsg, null, 2)}\n\n请在 iframe 页面的控制台查看是否收到消息。`)
 }
 
 function goToPairing() {
@@ -194,7 +178,6 @@ function connectWS() {
 
   auth.setConnectionStatus('verifying')
   const token = auth.token.value || localStorage.getItem('jclaw_token') || ''
-  console.log('token', role,token)
   wkIM.connect(String(role.userId), role.telephone, token)
     .then(() => auth.setConnectionStatus('connected'))
     .catch(() => auth.setConnectionStatus('failed', '悟空IM连接失败'))
@@ -225,9 +208,9 @@ watch(auth.isLoggedIn, (loggedIn) => {
   if (loggedIn) connectWS()
 })
 
-// 切换角色时重连（userId 变化）
+// 切换角色时重连（userId 变化，初次赋值跳过）
 watch(() => auth.currentRole.value?.userId, (newId, oldId) => {
-  if (!newId || newId === oldId) return
+  if (!newId || !oldId || newId === oldId) return
   wkIM.disconnect()
   store.wsStatus = 'disconnected'
   connectWS()

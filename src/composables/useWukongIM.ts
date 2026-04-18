@@ -17,26 +17,19 @@ const SOURCE_TYPE = 3
 // ── 模块级单例状态 ──────────────────────────────
 const status = ref<'connecting' | 'connected' | 'disconnected'>('disconnected')
 let linkStatus = 0  // WKSDK 原始连接状态，1 = 已连接
-let currentUserId = ''
 let currentTelephone = ''
 type IncomingMsgHandler = (message: unknown) => void
 const messageHandlers = new Set<IncomingMsgHandler>()
 // ────────────────────────────────────────────────
 
-function _connectStatusListener(s: number, reasonCode: number) {
+function _connectStatusListener(s: number, _reasonCode: number) {
   linkStatus = s
-  sessionStorage.setItem('wkLinkStatus', String(s))
-  if (s === 1) {
-    status.value = 'connected'
-    console.log('[WukongIM] 连接成功')
-  } else {
-    status.value = 'disconnected'
-    console.log('[WukongIM] 连接断开', reasonCode)
-  }
+  status.value = s === 1 ? 'connected' : 'disconnected'
 }
 
 function _messageListener(message: unknown) {
   console.log('[WukongIM] 收到原始消息', message)
+
   messageHandlers.forEach(h => h(message))
 }
 
@@ -54,16 +47,12 @@ export function useWukongIM() {
       } else {
         WKSDK.shared().config.addr = wsAddr
       }
-      currentUserId = userId
       currentTelephone = telephone
       WKSDK.shared().config.uid = userId
       WKSDK.shared().config.token = token
 
-      // 4. 注册监听器（幂等）
       WKSDK.shared().connectManager.addConnectStatusListener(_connectStatusListener)
       WKSDK.shared().chatManager.addMessageListener(_messageListener)
-
-      // 5. 建立连接
       WKSDK.shared().connectManager.connect()
     } catch (err) {
       status.value = 'disconnected'
@@ -77,17 +66,13 @@ export function useWukongIM() {
     WKSDK.shared().connectManager.removeConnectStatusListener(_connectStatusListener)
     WKSDK.shared().connectManager.disconnect()
     linkStatus = 0
-    currentUserId = ''
     currentTelephone = ''
-    sessionStorage.removeItem('wkLinkStatus')
     status.value = 'disconnected'
   }
 
   function sendText(text: string) {
-    const wkChannelId = `${currentTelephone}`
-    console.log('[WukongIM] 发送消息 channelId:', wkChannelId, 'text:', text.slice(0, 50))
     const msg = new MessageText(text)
-    const channel = new Channel(wkChannelId, ChannelTypePerson)
+    const channel = new Channel(currentTelephone, ChannelTypePerson)
     WKSDK.shared().chatManager.send(msg, channel)
   }
 
