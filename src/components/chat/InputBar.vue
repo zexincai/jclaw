@@ -195,8 +195,8 @@ async function handleVoiceFinish(file: File) {
     // 并行：上传音频 + 取Token后立即 ASR
     const [audioUrl, asrText] = await Promise.all([
       uploadAudio(file),
-      getAliyunToken().then(({ token, appkey }) =>
-        transcribeAudio(file, token, appkey, format)
+      getAliyunToken().then(({ token, appKey }) =>
+        transcribeAudio(file, token, appKey, format)
       ),
     ])
 

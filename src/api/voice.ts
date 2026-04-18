@@ -11,9 +11,9 @@ export function getAsrFormat(mimeType: string): string {
   return 'mp3'
 }
 
-/** 从后端获取阿里云 Token + Appkey */
-export async function getAliyunToken(): Promise<{ token: string; appkey: string }> {
-  const res = await http.get<{ token: string; appkey: string }>('/eng/voice/aliyunToken')
+/** 从后端获取阿里云 Token + AppKey */
+export async function getAliyunToken(): Promise<{ token: string; appKey: string }> {
+  const res = await http.get<{ token: string; appKey: string }>('/eng/voice/aliyunToken')
   return res.data
 }
 
@@ -27,10 +27,10 @@ const ASR_TIMEOUT_MS = 20_000
 export async function transcribeAudio(
   file: File,
   token: string,
-  appkey: string,
+  appKey: string,
   format: string,
 ): Promise<string> {
-  const url = `${ASR_ENDPOINT}?appkey=${encodeURIComponent(appkey)}&format=${format}&sample_rate=16000&enable_punctuation_prediction=true`
+  const url = `${ASR_ENDPOINT}?appkey=${encodeURIComponent(appKey)}&format=${format}&sample_rate=16000&enable_punctuation_prediction=true`
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), ASR_TIMEOUT_MS)
