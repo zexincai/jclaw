@@ -1,4 +1,6 @@
 <template>
+  <!-- Toast 始终挂载，登录页也能显示错误提示 -->
+  <ToastList />
   <LoginView v-if="!auth.isLoggedIn.value" />
   <div v-else class="flex flex-col h-screen overflow-hidden bg-gray-50">
     <!-- 标题栏 -->
@@ -28,20 +30,20 @@
     <!-- 主内容区：项目栏 + 会话面板 + 聊天 + iframe -->
     <div class="flex flex-1 min-h-0 overflow-hidden">
       <ProjectSwitcher />
-      <SidePanel v-show="sidePanelOpen" class="w-56 shrink-0" />
-      <button @click="sidePanelOpen = !sidePanelOpen"
+      <SidePanel v-show="sidePanelOpen" :style="{ width: sidePanelWidth + 'px' }" class="shrink-0" />
+      <button @click="sidePanelOpen = !sidePanelOpen" @mousedown="onSideDividerMousedown"
         class="flex items-center justify-center w-4 transition-colors border-r border-gray-200 shrink-0 bg-gray-50 hover:bg-gray-50 text-gray-00 hover:text-gray-500"
         :title="sidePanelOpen ? '收起侧栏' : '展开侧栏'">
         <ChevronsLeft v-if="sidePanelOpen" :size="12" />
         <ChevronsRight v-else :size="12" />
       </button>
       <ChatArea class="flex-1 min-w-0" />
-      <button v-if="bridge.isVisible.value" @click="bridge.closePanel()"
-        class="flex items-center justify-center w-4 text-gray-300 transition-colors bg-white border-l border-gray-200 shrink-0 hover:bg-gray-50 hover:text-gray-500"
+      <button v-if="bridge.isVisible.value" @click="bridge.closePanel()" @mousedown="onBizDividerMousedown"
+        class="flex items-center justify-center w-4 text-gray-300 transition-colors border-l border-gray-200 bg-gray-50 shrink-0 hover:bg-gray-50 hover:text-gray-500"
         title="收起面板">
         <ChevronsRight :size="12" />
       </button>
-      <BusinessPanel v-show="bridge.isVisible.value" class="w-[1260px] shrink-0" />
+      <BusinessPanel v-show="bridge.isVisible.value" :style="{ width: businessPanelWidth + 'px' }" class="shrink-0" />
     </div>
 
     <!-- 配对引导弹窗 -->
@@ -84,6 +86,7 @@
       @success="onAuthSuccess" />
 
     <!-- 连接状态弹窗 -->
+    <!-- 连接状态弹窗 -->
     <ConnectionStatusModal :visible="connectionModalVisible" :status="auth.connectionStatus.value"
       :error="auth.connectionError.value" @close="connectionModalVisible = false" @retry="handleRetryConnection"
       @update-token="handleUpdateToken" @not-paired="handleNotPaired" />
@@ -95,7 +98,44 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
-import logoUrl from './assets/logo.jpg'
+
+// 拖拽分割线逻辑
+function useDividerDrag(
+  widthRef: ReturnType<typeof ref<number>>,
+  minWidth: number,
+  maxWidth: number,
+  direction: 'left' | 'right' = 'left'
+) {
+  function onMousedown(e: MouseEvent) {
+    const startX = e.clientX
+    const startWidth = widthRef.value
+    let dragged = false
+    let overlay: HTMLDivElement | null = null
+
+    function onMousemove(ev: MouseEvent) {
+      if (!dragged && Math.abs(ev.clientX - startX) < 4) return
+      if (!dragged) {
+        dragged = true
+        // 拖动开始时才创建遮罩，避免单击时 click 事件丢失
+        overlay = document.createElement('div')
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;cursor:col-resize'
+        document.body.appendChild(overlay)
+      }
+      const delta = direction === 'left' ? ev.clientX - startX : startX - ev.clientX
+      widthRef.value = Math.min(maxWidth, Math.max(minWidth, startWidth + delta))
+    }
+    function cleanup(ev: MouseEvent) {
+      overlay?.remove()
+      window.removeEventListener('mousemove', onMousemove)
+      window.removeEventListener('mouseup', cleanup)
+      if (dragged) ev.stopPropagation()
+    }
+    window.addEventListener('mousemove', onMousemove)
+    window.addEventListener('mouseup', cleanup)
+  }
+  return { onMousedown }
+}
+import logoUrl from './assets/logo.png'
 import { Plus, ChevronsLeft, ChevronsRight, Link2 } from 'lucide-vue-next'
 import ProjectSwitcher from './components/layout/ProjectSwitcher.vue'
 import SidePanel from './components/layout/SidePanel.vue'
@@ -105,6 +145,7 @@ import RealNameAuthModal from './components/modals/RealNameAuthModal.vue'
 import GlobalLoading from './components/GlobalLoading.vue'
 import LoginView from './views/LoginView.vue'
 import ConnectionStatusModal from './components/ConnectionStatusModal.vue'
+import ToastList from './components/ui/ToastList.vue'
 import { useWukongIM } from './composables/useWukongIM'
 import { useProjects } from './composables/useProjects'
 import { useChat } from './composables/useChat'
@@ -122,13 +163,14 @@ const sidePanelOpen = ref(true)
 const pairingModalVisible = ref(false)
 const connectionModalVisible = ref(false)
 
+const sidePanelWidth = ref(224) // 默认 w-56 = 224px
+const businessPanelWidth = ref(1260)
+const { onMousedown: onSideDividerMousedown } = useDividerDrag(sidePanelWidth, 160, 400, 'left')
+const { onMousedown: onBizDividerMousedown } = useDividerDrag(businessPanelWidth, 600, 1600, 'right')
+
 function onAuthSuccess() {
   auth.updateCertificationStatus(true)
 }
-
-watch(bridge.isVisible, v => {
-  sidePanelOpen.value = !v
-})
 
 watch(wkIM.status, async (s) => {
   store.wsStatus = s

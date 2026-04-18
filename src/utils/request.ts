@@ -1,4 +1,5 @@
 import { getDeviceId } from './device'
+import { showToast } from './toast'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL
 let isLoggingOut = false
@@ -49,18 +50,23 @@ async function request<T>(url: string, options: RequestOptions = {}): Promise<Ap
       isLoggingOut = true
       localStorage.removeItem('jclaw_token')
       localStorage.removeItem('jclaw_auth')
-      window.location.reload()
+      showToast('登录已过期，请重新登录', 'warning')
+      setTimeout(() => window.location.reload(), 1500)
       throw new Error('登录已过期，请重新登录')
     }
 
     // 业务错误处理
     if (json.code !== 200) {
-      throw new Error(json.msg || '请求失败')
+      const msg = json.msg || '请求失败，请稍后重试'
+      showToast(msg, 'error')
+      throw new Error(msg)
     }
     return json
   } catch (err) {
     if (err instanceof Error) throw err
-    throw new Error('网络请求失败')
+    const msg = '网络请求失败，请检查网络连接'
+    showToast(msg, 'error')
+    throw new Error(msg)
   }
 }
 
