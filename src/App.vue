@@ -133,7 +133,7 @@ function useDividerDrag(
   return { onMousedown }
 }
 import logoUrl from './assets/logo.png'
-import { Plus, ChevronsLeft, ChevronsRight, Link2 } from 'lucide-vue-next'
+import { ChevronsLeft, ChevronsRight, Link2 } from 'lucide-vue-next'
 import ProjectSwitcher from './components/layout/ProjectSwitcher.vue'
 import SidePanel from './components/layout/SidePanel.vue'
 import ChatArea from './components/layout/ChatArea.vue'
@@ -190,20 +190,20 @@ watch(wkIM.status, async (s) => {
   }
 }, { immediate: true })
 
-function testIframe() {
-  const testMsg = {
-    type: 'JCLAW_OPEN_MODAL',
-    "label": "查看施工日志",
-    "path": "/org/dept",
-    "menuId": "301",
-    name: "测试",
-    operateType: 0
-  }
-  const iframe = bridge.iframeRef.value
-  if (!iframe?.contentWindow) return
-  bridge.dispatchAction(testMsg)
-  bridge.isVisible.value = true
-}
+// function testIframe() {
+//   const testMsg = {
+//     type: 'JCLAW_OPEN_MODAL',
+//     "label": "查看施工日志",
+//     "path": "/org/dept",
+//     "menuId": "301",
+//     name: "测试",
+//     operateType: 0
+//   }
+//   const iframe = bridge.iframeRef.value
+//   if (!iframe?.contentWindow) return
+//   bridge.dispatchAction(testMsg)
+//   bridge.isVisible.value = true
+// }
 
 function goToPairing() {
   window.open('http://127.0.0.1:18789/nodes', '_blank')
