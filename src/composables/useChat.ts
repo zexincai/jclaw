@@ -284,6 +284,7 @@ export function useChat() {
     const role = auth.currentRole.value
     const sysLines = [
       role?.userRolePrompt || '',
+      ` operate-port: 2 `,
       auth.token.value ? `用户令牌：${auth.token.value}` : '',
     ].filter(Boolean).join('\n')
     const sysBlock = sysLines ? `<system>\n${sysLines}\n</system>\n\n` : ''
