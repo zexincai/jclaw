@@ -82,12 +82,13 @@ function onCancelled(handler: CancelledHandler) {
   cancelledHandlers.add(handler)
   return () => cancelledHandlers.delete(handler)
 }
-
+// PC端：2,智能体-PC端：6，智能体-PC安装版：7
+// 移动端（安卓：0，iOS：1,PC端：2,鸿蒙系统：3，智能体-安卓：4，智能体-iOS：5,智能体-PC端：6，智能体-PC安装版：7，智能体-鸿蒙系统：8
 function dispatchAction(payload: unknown) {
   attachListener()
   isVisible.value = true
   iframeRef.value?.contentWindow?.postMessage(
-    plain({ type: 'JCLAW_ACTION', ...(payload || {}), origin: "JCLAW", access_token: cachedToken }),
+    plain({ type: 'JCLAW_ACTION', ...(payload || {}), origin: "JCLAW", access_token: cachedToken, mobileType: 6 }),
     ORIGIN || '*'
   )
 }
