@@ -122,7 +122,7 @@ function useDividerDrag(
         document.body.appendChild(overlay)
       }
       const delta = direction === 'left' ? ev.clientX - startX : startX - ev.clientX
-      widthRef.value = Math.min(maxWidth, Math.max(minWidth, startWidth + delta))
+      widthRef.value = Math.min(maxWidth, Math.max(minWidth, (startWidth ?? 0) + delta))
     }
     function cleanup(ev: MouseEvent) {
       overlay?.remove()
