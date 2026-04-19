@@ -1,8 +1,8 @@
 <template>
   <div class="flex flex-col h-full bg-white border-r border-gray-200">
     <!-- 搜索框 -->
-    <div class="p-3 border-b border-gray-100 shrink-0">
-      <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg">
+    <div class="flex items-center gap-2 p-3 border-b border-gray-100 shrink-0">
+      <div class="flex items-center flex-1 gap-1.5 px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg min-w-0">
         <Search :size="13" class="text-gray-400 shrink-0" />
         <input
           v-model="searchQuery"
@@ -10,6 +10,12 @@
           class="flex-1 bg-transparent text-xs text-gray-600 outline-none placeholder-gray-400 min-w-0"
         />
       </div>
+      <button @click="!store.aiReplying && chat.newSession()"
+        :disabled="store.aiReplying"
+        class="flex items-center justify-center text-green-600 transition-colors border border-gray-200 rounded w-7 h-7 shrink-0 hover:border-green-500 hover:bg-green-50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-gray-200 disabled:hover:bg-transparent"
+        title="新对话">
+        <Plus :size="16" />
+      </button>
     </div>
 
     <!-- 会话列表 -->
@@ -31,14 +37,18 @@
           <div
             v-for="session in group"
             :key="session.id"
-            @click="chat.loadSession(session.id)"
-            class="group relative flex items-center px-3 py-2 mx-1 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
-            :class="{ 'bg-gray-100': session.id === store.activeSessionId }"
+            @click="!store.aiReplying && chat.loadSession(session.id)"
+            class="group relative flex items-center px-3 py-2 mx-1 rounded-lg transition-colors"
+            :class="[
+              session.id === store.activeSessionId ? 'bg-gray-100' : '',
+              store.aiReplying && session.id !== store.activeSessionId ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-gray-50'
+            ]"
           >
             <span class="flex-1 text-sm text-gray-700 truncate pr-2">{{ session.title }}</span>
             <button
-              @click.stop="chat.deleteSession(session.id)"
-              class="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all shrink-0"
+              @click.stop="!store.aiReplying && chat.deleteSession(session.id)"
+              :disabled="store.aiReplying"
+              class="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all shrink-0 disabled:pointer-events-none"
             ><Trash2 :size="12" /></button>
           </div>
         </template>
@@ -58,7 +68,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Search, ChevronDown, Trash2 } from 'lucide-vue-next'
+import { Search, ChevronDown, Trash2, Plus } from 'lucide-vue-next'
 import { useChatStore } from '../../stores/chat'
 import { useChat } from '../../composables/useChat'
 import UsageBar from '../ui/UsageBar.vue'

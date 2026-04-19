@@ -9,16 +9,11 @@
         <img :src="logoUrl" class="object-cover w-8 h-8 rounded-full" />
         <span class="text-sm font-semibold text-gray-700">JClaw</span>
       </div>
-      <button @click="chat.newSession()"
-        class="flex items-center justify-center ml-40 text-green-600 transition-colors border border-gray-200 rounded w-7 h-7 hover:border-green-500 hover:bg-green-50"
-        title="新对话">
-        <Plus :size="16" />
-      </button>
       <div class="flex-1" />
       <!-- iframe 通信测试按钮 -->
-      <button @click="testIframe"
+      <!-- <button @click="testIframe"
         class="px-2.5 py-1 text-xs border border-gray-200 rounded text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors font-mono"
-        title="测试 iframe 通信">测试通信</button>
+        title="测试 iframe 通信">测试通信</button> -->
       <!-- WS 状态指示 -->
       <div :class="[
         'w-2 h-2 rounded-full shrink-0 transition-colors',
@@ -37,7 +32,7 @@
         <ChevronsLeft v-if="sidePanelOpen" :size="12" />
         <ChevronsRight v-else :size="12" />
       </button>
-      <ChatArea class="flex-1 min-w-0" />
+      <ChatArea class="flex-1 min-w-[450px]" />
       <button v-if="bridge.isVisible.value" @click="bridge.closePanel()" @mousedown="onBizDividerMousedown"
         class="flex items-center justify-center w-4 text-gray-300 transition-colors border-l border-gray-200 bg-gray-50 shrink-0 hover:bg-gray-50 hover:text-gray-500"
         title="收起面板">
@@ -104,7 +99,8 @@ function useDividerDrag(
   widthRef: ReturnType<typeof ref<number>>,
   minWidth: number,
   maxWidth: number,
-  direction: 'left' | 'right' = 'left'
+  direction: 'left' | 'right' = 'left',
+  dynamicMax?: () => number
 ) {
   function onMousedown(e: MouseEvent) {
     const startX = e.clientX
@@ -122,7 +118,8 @@ function useDividerDrag(
         document.body.appendChild(overlay)
       }
       const delta = direction === 'left' ? ev.clientX - startX : startX - ev.clientX
-      widthRef.value = Math.min(maxWidth, Math.max(minWidth, (startWidth ?? 0) + delta))
+      const max = dynamicMax ? dynamicMax() : maxWidth
+      widthRef.value = Math.min(max, Math.max(minWidth, (startWidth ?? 0) + delta))
     }
     function cleanup(ev: MouseEvent) {
       overlay?.remove()
@@ -166,7 +163,12 @@ const connectionModalVisible = ref(false)
 const sidePanelWidth = ref(224) // 默认 w-56 = 224px
 const businessPanelWidth = ref(1260)
 const { onMousedown: onSideDividerMousedown } = useDividerDrag(sidePanelWidth, 160, 400, 'left')
-const { onMousedown: onBizDividerMousedown } = useDividerDrag(businessPanelWidth, 600, 1600, 'right')
+const { onMousedown: onBizDividerMousedown } = useDividerDrag(businessPanelWidth, 600, 1600, 'right', () => {
+  // 总可用宽度 - 聊天区最小宽度 560 - 分割条 4px*2 - ProjectSwitcher/SidePanel 等左侧宽度
+  const chatMinWidth = 450
+  const dividers = 8 // 两个分割条各 4px
+  return window.innerWidth - (sidePanelOpen.value ? sidePanelWidth.value : 0) - chatMinWidth - dividers - 40 // 40 为 ProjectSwitcher 估算
+})
 
 function onAuthSuccess() {
   auth.updateCertificationStatus(true)
@@ -186,7 +188,7 @@ watch(wkIM.status, async (s) => {
   } else {
     await chat.loadSession(store.activeSessionId)
   }
-})
+}, { immediate: true })
 
 function testIframe() {
   const testMsg = {
