@@ -89,6 +89,14 @@ export const useChatStore = defineStore("chat", () => {
       );
   }
 
+  /** 退出登录时重置所有会话状态 */
+  function resetAll() {
+    sessions.value = []
+    activeSessionId.value = ''
+    messages.value = []
+    aiReplying.value = false
+  }
+
   return {
     projects,
     activeProjectId,
@@ -104,5 +112,6 @@ export const useChatStore = defineStore("chat", () => {
     activeProject,
     activeSessionMessages,
     sessionsByProject,
+    resetAll,
   };
 });

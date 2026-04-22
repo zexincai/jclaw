@@ -436,5 +436,11 @@ export function useChat() {
     } catch { /* ignore */ }
   }
 
-  return { send, newSession, loadSession, deleteSession, loadSessions }
+  function resetState() {
+    streamingId = null
+    pendingSessionId = null
+    currentChatId = null
+  }
+
+  return { send, newSession, loadSession, deleteSession, loadSessions, resetState }
 }

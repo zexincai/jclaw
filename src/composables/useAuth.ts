@@ -1,5 +1,9 @@
 import { ref, computed } from 'vue'
 import { aiSysLoginPc, switchLogin } from '../api/auth'
+import { useChatStore } from '../stores/chat'
+import { clearMessagesCache } from '../utils/chatCache'
+import { useChat } from './useChat'
+import { useWukongIM } from './useWukongIM'
 export interface Role {
   userId: string
   loginName: string
@@ -149,6 +153,15 @@ export function useAuth() {
     localStorage.removeItem(AUTH_STORAGE_KEY)
     localStorage.removeItem(TOKEN_STORAGE_KEY)
     localStorage.removeItem('jclaw_last_phone')
+    // 断开 WS 连接，确保重新登录时能重新连接并触发会话加载
+    useWukongIM().disconnect()
+    // 清除内存中的会话和消息
+    const store = useChatStore()
+    store.resetAll()
+    // 清除流式状态
+    useChat().resetState()
+    // 清除 localStorage 中的消息缓存
+    clearMessagesCache()
   }
 
   async function loginByMobile(phoneNumber: string, code: string, uuid: string) {
@@ -171,6 +184,16 @@ export function useAuth() {
     localStorage.setItem(TOKEN_STORAGE_KEY, accessToken)
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ roles: userList, currentRoleId: userList[0].userId }))
     localStorage.setItem('jclaw_last_phone', phoneNumber)
+
+    // 重新登录后始终选中第一个角色并加载其会话
+    const store = useChatStore()
+    store.resetAll()
+    store.activeProjectId = userList[0].userId
+    const chat = useChat()
+    await chat.loadSessions()
+    if (store.activeSessionId) {
+      await chat.loadSession(store.activeSessionId)
+    }
   }
 
   const needsCertification = computed(() => {
