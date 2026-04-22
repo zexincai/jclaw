@@ -74,26 +74,46 @@ function detectPlatform(): 'pc' | 'app' | 'desk' {
   return 'pc'
 }
 
-/** 提取当前平台的 action 标签 */
+/** 检测是否为360浏览器（其安全过滤器会剥离 HTML-like 标签） */
+function is360Browser(): boolean {
+  if (typeof navigator === 'undefined') return false
+  return /360SE|360EE|QIHU/i.test(navigator.userAgent)
+}
+
+/** 提取当前平台的 action 标签，支持 <pcAction> 和 [pcAction] 两种格式 */
 function extractPlatformAction(content: string): PlatformAction | undefined {
   const tagMap = { pc: 'pcAction', app: 'appAction', desk: 'deskAction' }
-  const tag = tagMap[detectPlatform()]
-  const re = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, 'i')
-  const match = content.match(re)
-  if (!match) return undefined
-  try {
-    const parsed = JSON.parse(match[1].trim())
-    if (parsed.label) return { label: parsed.label, payload: parsed }
-  } catch { /* ignore */ }
+  const platformTag = tagMap[detectPlatform()]
+  // 优先当前平台，其次回退其他平台（兼容平台检测不准的情况）
+  const tagsToTry = [platformTag, ...Object.values(tagMap).filter(t => t !== platformTag)]
+
+  for (const tag of tagsToTry) {
+    // 支持 <pcAction>...</pcAction> 和 [pcAction]...[/pcAction] 两种格式
+    const patterns = [
+      new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, 'i'),
+      new RegExp(`\\[${tag}\\]([\\s\\S]*?)\\[\\/${tag}\\]`, 'i'),
+    ]
+    for (const re of patterns) {
+      const match = content.match(re)
+      if (!match) continue
+      try {
+        const parsed = JSON.parse(match[1].trim())
+        if (parsed.label) return { label: parsed.label, payload: parsed }
+      } catch { /* ignore */ }
+    }
+  }
   return undefined
 }
 
-/** 剥离所有平台 action 标签 */
+/** 剥离所有平台 action 标签（同时支持 <tag> 和 [tag] 两种格式） */
 function stripAllActionTags(content: string): string {
   return content
     .replace(/<pcAction>[\s\S]*?<\/pcAction>/gi, '')
     .replace(/<appAction>[\s\S]*?<\/appAction>/gi, '')
     .replace(/<deskAction>[\s\S]*?<\/deskAction>/gi, '')
+    .replace(/\[pcAction\][\s\S]*?\[\/pcAction\]/gi, '')
+    .replace(/\[appAction\][\s\S]*?\[\/appAction\]/gi, '')
+    .replace(/\[deskAction\][\s\S]*?\[\/deskAction\]/gi, '')
     .trim()
 }
 
@@ -212,8 +232,10 @@ export function useChat() {
 
       const text = extractText(rawMsg)
       if (!text) return
-
-      handleIncomingAIMessage(store, bridge, text)
+      // msg.fromUID == 用户手机号码
+      if (msg.fromUID === `${currentUser.telephone}`) {
+        handleIncomingAIMessage(store, bridge, text)
+      }
     })
   }
 
@@ -285,9 +307,11 @@ export function useChat() {
 
     // 构建系统上下文（token + 角色系统提示），对 IM 和后端接口共用
     const role = auth.currentRole.value
+    // 360浏览器安全过滤会剥离 <pcAction> 标签，改用方括号格式
+    const actionFormatHint = is360Browser() ? ' action-tag-format: bracket ' : ''
     const sysLines = [
       role?.userRolePrompt || '',
-      ` operate-port: 2 `,
+      ` operate-port: 2 ${actionFormatHint}`,
       auth.token.value ? `用户令牌：${auth.token.value}` : '',
     ].filter(Boolean).join('\n')
     const sysBlock = sysLines ? `<system>\n${sysLines}\n</system>\n\n` : ''
