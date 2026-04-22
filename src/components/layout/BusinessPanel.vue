@@ -2,8 +2,13 @@
   <div class="flex flex-col h-full bg-white">
     <!-- Agent 运行状态条（仅 iframe 打开时显示） -->
     <div v-if="bridge.isVisible.value"
-      class="py-2.5 px-4 bg-blue-50/80 border-b border-blue-100/50 text-xs text-blue-600 text-center font-medium backdrop-blur-sm">
-      JClaw 正在与业务界面交互中…
+      class="relative flex items-center py-2.5 px-4 bg-blue-50/80 border-b border-blue-100/50 backdrop-blur-sm">
+      <span class="flex-1 text-xs font-medium text-center text-blue-600">JClaw 正在与业务界面交互中…</span>
+      <button @click="bridge.closePanel()"
+        class="absolute flex items-center justify-center w-5 h-5 text-blue-400 transition-colors rounded right-2 hover:text-blue-600 hover:bg-blue-100"
+        title="收起面板">
+        <X :size="22" />
+      </button>
     </div>
     <iframe :ref="(el) => { bridge.iframeRef.value = el as HTMLIFrameElement | null }" :src="businessUrl"
       class="flex-1 w-full border-0" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
@@ -13,6 +18,7 @@
 
 <script setup lang="ts">
 import { onMounted, onUnmounted, watch } from 'vue'
+import { X } from 'lucide-vue-next'
 import { useIframeBridge } from '../../composables/useIframeBridge'
 import { useChatStore } from '../../stores/chat'
 import { useAuth } from '../../composables/useAuth'

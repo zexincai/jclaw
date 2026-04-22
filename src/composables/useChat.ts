@@ -18,6 +18,7 @@ function uuid(): string {
 
 let initialized = false
 let streamingId: string | null = null
+let pendingSessionId: string | null = null
 let currentChatId: number | null = null
 let _store: ReturnType<typeof useChatStore> | null = null
 
@@ -137,7 +138,7 @@ function handleIncomingAIMessage(store: ReturnType<typeof useChatStore>, bridge:
 
   const msg: Message = {
     id: msgId,
-    sessionId: store.activeSessionId,
+    sessionId: pendingSessionId ?? store.activeSessionId,
     role: 'assistant',
     content: platformAction
       ? stripAllActionTags(text)
@@ -186,6 +187,7 @@ function handleIncomingAIMessage(store: ReturnType<typeof useChatStore>, bridge:
   }
 
   streamingId = null
+  pendingSessionId = null
   if (_store) _store.aiReplying = false
 }
 
@@ -261,6 +263,7 @@ export function useChat() {
     }
     store.messages.push(placeholder)
     streamingId = placeholder.id
+    pendingSessionId = store.activeSessionId
     store.aiReplying = true
 
     const session = store.sessions.find(s => s.id === store.activeSessionId)
