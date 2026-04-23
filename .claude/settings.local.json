@@ -18,7 +18,8 @@
       "Bash(python3 -c \"import rembg; print\\(''rembg ok''\\)\")",
       "Bash(pip3 install:*)",
       "Bash(python3 -c \":*)",
-      "Bash(python3 -:*)"
+      "Bash(python3 -:*)",
+      "mcp__ide__getDiagnostics"
     ]
   }
 }

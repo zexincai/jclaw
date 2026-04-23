@@ -179,6 +179,7 @@ watch(wkIM.status, async (s) => {
   if (s !== 'connected') return
   store.wsMaxRetries = false
   pairingModalVisible.value = false
+  if (store.switchingRole) return
   if (store.activeSessionId) return
   const project = store.activeProject()
   if (!project) return
