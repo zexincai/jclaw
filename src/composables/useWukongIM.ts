@@ -6,10 +6,35 @@ import { ref } from 'vue'
 import {
   WKSDK,
   MessageText,
+  MessageContent,
+  MessageContentManager,
   Channel,
   ChannelTypePerson,
 } from 'wukongimjssdk'
 import { getChatIMLongConnection } from '../api/agent'
+
+// ── 自定义消息类型 ───────────────────────────────
+const JCLAW_CONTENT_TYPE = 101
+
+class JClawMessageContent extends MessageContent {
+  text: string = ''
+  requestId: string = ''
+
+  get contentType(): number { return JCLAW_CONTENT_TYPE }
+  get conversationDigest(): string { return this.text }
+
+  encodeJSON(): any {
+    return { content: this.text, requestId: this.requestId }
+  }
+
+  decodeJSON(content: any): void {
+    this.text = content?.content ?? content?.text ?? ''
+    this.requestId = content?.requestId ?? ''
+  }
+}
+
+MessageContentManager.shared().register(JCLAW_CONTENT_TYPE, () => new JClawMessageContent())
+// ────────────────────────────────────────────────
 
 // sourceType: 3 = 智能体-pc端
 const SOURCE_TYPE = 3
@@ -76,6 +101,14 @@ export function useWukongIM() {
     WKSDK.shared().chatManager.send(msg, channel)
   }
 
+  function sendCustom(text: string, requestId: string) {
+    const msg = new JClawMessageContent()
+    msg.text = text
+    msg.requestId = requestId
+    const channel = new Channel(currentTelephone, ChannelTypePerson)
+    WKSDK.shared().chatManager.send(msg, channel)
+  }
+
   /**
    * 注册消息监听器，返回取消监听的函数
    */
@@ -84,5 +117,5 @@ export function useWukongIM() {
     return () => messageHandlers.delete(handler)
   }
 
-  return { status, connect, disconnect, sendText, onMessage }
+  return { status, connect, disconnect, sendText, sendCustom, onMessage }
 }

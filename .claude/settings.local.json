@@ -20,7 +20,9 @@
       "Bash(python3 -c \":*)",
       "Bash(python3 -:*)",
       "mcp__ide__getDiagnostics",
-      "Bash(grep -r \"marked\\\\|markdown-it\\\\|renderer\\\\|extension\" /Users/lion/Documents/learn/app-jw-web/src --include=*.ts --include=*.js --include=*.vue)"
+      "Bash(grep -r \"marked\\\\|markdown-it\\\\|renderer\\\\|extension\" /Users/lion/Documents/learn/app-jw-web/src --include=*.ts --include=*.js --include=*.vue)",
+      "Bash(find /Users/lion/Documents/learn/app-jw-web/node_modules -type d -name *wukong*)",
+      "Bash(find /Users/lion/Documents/learn/app-jw-web/node_modules -type f -name *Message*)"
     ]
   }
 }

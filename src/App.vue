@@ -11,9 +11,9 @@
       </div>
       <div class="flex-1" />
       <!-- iframe 通信测试按钮 -->
-      <button @click="testIframe"
+      <!-- <button @click="testIframe"
         class="px-2.5 py-1 text-xs border border-gray-200 rounded text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors font-mono"
-        title="测试 iframe 通信">测试通信</button>
+        title="测试 iframe 通信">测试通信</button> -->
       <!-- WS 状态指示 -->
       <div
         :class="[
@@ -164,21 +164,12 @@ function onAuthSuccess() {
 
 watch(
   wkIM.status,
-  async (s) => {
+  (s) => {
     store.wsStatus = s
     if (s !== 'connected') return
     store.wsMaxRetries = false
     pairingModalVisible.value = false
-    if (store.switchingRole) return
-    if (store.activeSessionId) return
-    const project = store.activeProject()
-    if (!project) return
-    await chat.loadSessions()
-    if (!store.activeSessionId) {
-      chat.newSession()
-    } else {
-      await chat.loadSession(store.activeSessionId)
-    }
+    // 会话已在连接 IM 前加载完毕，无需重复加载
   },
   { immediate: true },
 )
@@ -193,36 +184,33 @@ watch(bridge.isVisible, (isVisible) => {
   }
 })
 
-function testIframe() {
-  const testMsg = {
-    type: 'JCLAW_OPEN_MODAL',
-    "label": "查看施工日志",
-    "path": "/org/dept",
-    "menuId": "301",
-    name: "测试",
-    operateType: 0
-  }
-  const iframe = bridge.iframeRef.value
-  if (!iframe?.contentWindow) return
-  bridge.dispatchAction(testMsg)
-  bridge.isVisible.value = true
-}
+// function testIframe() {
+//   const testMsg = {
+//     type: 'JCLAW_OPEN_MODAL',
+//     "label": "查看施工日志",
+//     "path": "/org/dept",
+//     "menuId": "301",
+//     name: "测试",
+//     operateType: 0
+//   }
+//   const iframe = bridge.iframeRef.value
+//   if (!iframe?.contentWindow) return
+//   bridge.dispatchAction(testMsg)
+//   bridge.isVisible.value = true
+// }
 
 function goToPairing() {
   window.open('http://127.0.0.1:18789/nodes', '_blank')
   pairingModalVisible.value = false
 }
 
+/** 纯 IM 连接，不加载会话（重连/重试复用） */
 function connectWS() {
-  if (store.wsStatus !== 'disconnected') return
-  init()
-
   const role = auth.currentRole.value
   if (!role) {
     auth.setConnectionStatus('failed', '未获取到用户信息')
     return
   }
-
   auth.setConnectionStatus('verifying')
   const token = auth.token.value || localStorage.getItem('jclaw_token') || ''
   wkIM
@@ -231,8 +219,27 @@ function connectWS() {
     .catch(() => auth.setConnectionStatus('failed', '悟空IM连接失败'))
 }
 
+/** 初次启动：先加载会话，再连接 IM，确保连上时不丢消息 */
+async function initAndConnect() {
+  if (store.wsStatus !== 'disconnected') return
+  init()
+
+  const project = store.activeProject()
+  if (project) {
+    await chat.loadSessions()
+    if (!store.activeSessionId) {
+      chat.newSession()
+    } else {
+      await chat.loadSession(store.activeSessionId)
+    }
+  }
+
+  connectWS()
+}
+
 function handleRetryConnection() {
   wkIM.disconnect()
+  store.wsStatus = 'disconnected'
   connectWS()
 }
 
@@ -247,13 +254,24 @@ function handleNotPaired(_error: Error) {
   pairingModalVisible.value = true
 }
 
-// 已登录（localStorage 恢复）时直接连接；登录事件触发时也连接
+function syncTokenToIframe() {
+  const token = auth.token.value || localStorage.getItem('jclaw_token') || ''
+  if (token) bridge.sendToken(token)
+}
+
+// 已登录（localStorage 恢复）时先加载会话再连接；登录事件触发时同理
 onMounted(() => {
-  if (auth.isLoggedIn.value) connectWS()
+  if (auth.isLoggedIn.value) {
+    initAndConnect()
+    syncTokenToIframe()
+  }
 })
 
 watch(auth.isLoggedIn, (loggedIn) => {
-  if (loggedIn) connectWS()
+  if (loggedIn) {
+    initAndConnect()
+    syncTokenToIframe()
+  }
 })
 
 // 切换角色时重连（userId 变化，初次赋值跳过）
@@ -264,6 +282,7 @@ watch(
     wkIM.disconnect()
     store.wsStatus = 'disconnected'
     connectWS()
+    syncTokenToIframe()
   },
 )
 

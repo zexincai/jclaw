@@ -20,6 +20,10 @@ let initialized = false
 let streamingId: string | null = null
 let pendingSessionId: string | null = null
 let currentChatId: number | null = null
+type SendMode = 'full' | 'im_only' | 'im' | 'session_only'
+interface PendingReply { streamingId: string | null; mode: SendMode; iframeRelay: boolean; chatId: number | null }
+// key = requestId（嵌入 <system> 块，AI 回复时携带，实现一一对应）
+const replyMap = new Map<string, PendingReply>()
 let _store: ReturnType<typeof useChatStore> | null = null
 
 interface IframeNavigateAction {
@@ -33,6 +37,15 @@ function parseJsonBlock(content: string): Record<string, unknown> | undefined {
   const match = content.match(/```json\s*([\s\S]*?)```/)
   if (!match) return undefined
   try { return JSON.parse(match[1]) } catch { return undefined }
+}
+
+function extractJsBlock(content: string): string | undefined {
+  const match = content.match(/```javascript\s*([\s\S]*?)```/)
+  return match ? match[1].trim() : undefined
+}
+
+function stripJsBlock(content: string): string {
+  return content.replace(/```javascript\s*[\s\S]*?```/g, '').trim()
 }
 
 function extractAction(content: string): ActionPayload | undefined {
@@ -54,6 +67,14 @@ function stripActionJson(content: string): string {
 
 function stripSystemBlock(content: string): string {
   return content.replace(/<system>[\s\S]*?<\/system>\n*/gi, '').trim()
+}
+
+/** 从 AI 回复原文的 <system> 块中提取 request-id */
+function extractRequestId(rawText: string): string | undefined {
+  const match = rawText.match(/<system>([\s\S]*?)<\/system>/i)
+  if (!match) return undefined
+  const line = match[1].split('\n').find(l => l.trim().startsWith('request-id:'))
+  return line ? line.replace('request-id:', '').trim() : undefined
 }
 
 function stripThinkingTags(text: string): string {
@@ -150,11 +171,29 @@ function persistMessage(msg: Message) {
 }
 
 /** 处理收到的 AI 响应消息 */
-function handleIncomingAIMessage(store: ReturnType<typeof useChatStore>, bridge: ReturnType<typeof useIframeBridge>, rawText: string) {
+function handleIncomingAIMessage(store: ReturnType<typeof useChatStore>, bridge: ReturnType<typeof useIframeBridge>, rawText: string, incomingRequestId?: string) {
   const thinking = extractThinking(rawText)
   const text = stripThinkingTags(rawText)
 
-  const msgId = streamingId || uuid()
+  // 按 request-id 查找对应发送元数据：优先用消息 payload 中的 requestId，降级解析文本 <system> 块
+  const requestId = incomingRequestId || extractRequestId(rawText)
+  let pending: PendingReply | undefined
+  if (requestId && replyMap.has(requestId)) {
+    pending = replyMap.get(requestId)
+    replyMap.delete(requestId)
+  } else {
+    const firstKey = replyMap.keys().next().value
+    if (firstKey !== undefined) {
+      pending = replyMap.get(firstKey)
+      replyMap.delete(firstKey)
+    }
+  }
+  const msgMode = pending?.mode ?? 'full'
+  const shouldRelayToIframe = pending?.iframeRelay ?? false
+  const pendingStreamId = pending?.streamingId ?? null
+  const msgChatId = pending?.chatId ?? null
+
+  const msgId = pendingStreamId || uuid()
 
   // 平台 Action 标签
   const platformActions = extractPlatformActions(text)
@@ -167,13 +206,13 @@ function handleIncomingAIMessage(store: ReturnType<typeof useChatStore>, bridge:
 
   const msg: Message = {
     id: msgId,
-    sessionId: pendingSessionId ?? store.activeSessionId,
+    sessionId: pending?.streamingId ? (pendingSessionId ?? store.activeSessionId) : store.activeSessionId,
     role: 'assistant',
-    content: hasPlatformActions
+    content: stripJsBlock(hasPlatformActions
       ? (actionsInTable ? text : stripAllActionTags(text))
       : (iframeAction || action)
         ? stripActionJson(text)
-        : text,
+        : text),
     thinking: thinking || undefined,
     status: 'done',
     createdAt: new Date().toISOString(),
@@ -182,20 +221,22 @@ function handleIncomingAIMessage(store: ReturnType<typeof useChatStore>, bridge:
     ...(action ? { actionJson: action } : {}),
   }
 
-  // 替换占位消息或追加
-  const existingIdx = store.messages.findIndex(m => m.id === streamingId)
-  if (existingIdx >= 0) {
-    store.messages[existingIdx] = msg
-  } else {
-    store.messages.push(msg)
+  // im_only 不显示 AI 回复 UI，其余模式替换占位或追加
+  if (msgMode !== 'im_only') {
+    const existingIdx = store.messages.findIndex(m => m.id === pendingStreamId)
+    if (existingIdx >= 0) {
+      store.messages[existingIdx] = msg
+    } else {
+      store.messages.push(msg)
+    }
+    persistMessage(msg)
   }
-  persistMessage(msg)
 
-  // 保存 AI 消息到后端
-  if (text && currentChatId) {
+  // 保存 AI 消息到后端（im_only 模式不保存，剥离 JS 代码块）
+  if (text && msgChatId && msgMode !== 'im_only') {
     addChatRecordData({
-      fkChatId: currentChatId,
-      chatContent: text,
+      fkChatId: msgChatId,
+      chatContent: stripJsBlock(text),
       chatObject: '1',
     }).catch(() => { })
   }
@@ -219,6 +260,15 @@ function handleIncomingAIMessage(store: ReturnType<typeof useChatStore>, bridge:
   streamingId = null
   pendingSessionId = null
   if (_store) _store.aiReplying = false
+
+  // im_only 始终 relay 到 iframe；其他模式仅当来自 iframe 时 relay
+  if ((msgMode === 'im_only' || shouldRelayToIframe) && msg.content) {
+    bridge.relayAIResponse(msg.content, msg.thinking)
+  }
+
+  // 提取 ```javascript ... ``` 代码块并发给 iframe
+  const jsCode = extractJsBlock(rawText)
+  if (jsCode) bridge.relayJsCode(jsCode)
 }
 
 export function useChat() {
@@ -238,13 +288,15 @@ export function useChat() {
       const currentUser = auth.currentRole.value
       if (!currentUser) return
       if (msg.fromUID === `${currentUser.userId}`) return
-      if (msg.contentType !== 1 && msg.contentType !== 103) return
+      if (msg.contentType !== 1 && msg.contentType !== 103 && msg.contentType !== 101) return
 
       const text = extractText(rawMsg)
       if (!text) return
+      // 从自定义消息 payload 提取 requestId（优先），降级由 handleIncomingAIMessage 解析文本
+      const payloadRequestId = (msg.content as any)?.requestId as string | undefined
       // msg.fromUID == 用户手机号码
       if (msg.fromUID === `${currentUser.telephone}`) {
-        handleIncomingAIMessage(store, bridge, text)
+        handleIncomingAIMessage(store, bridge, text, payloadRequestId)
       }
     })
   }
@@ -266,7 +318,7 @@ export function useChat() {
     store.activeSessionId = session.id
   }
 
-  async function send(text: string, attachments: Attachment[] = []) {
+  async function send(text: string, attachments: Attachment[] = [], mode: SendMode = 'full', fromIframe = false) {
     const project = store.activeProject()
     if (!project) return
     ensureSession()
@@ -280,23 +332,34 @@ export function useChat() {
       status: 'sending',
       createdAt: new Date().toISOString(),
     }
-    store.messages.push(userMsg)
-    persistMessage(userMsg)
-
-    // 创建占位 AI 消息（等待响应）
-    const placeholder: Message = {
-      id: uuid(),
-      sessionId: store.activeSessionId,
-      role: 'assistant',
-      content: '',
-      thinking: ' ', // 触发 ThinkingBlock 动画
-      status: 'streaming',
-      createdAt: new Date().toISOString(),
+    // im / im_only 模式不在对话框显示用户消息
+    if (mode !== 'im' && mode !== 'im_only') {
+      store.messages.push(userMsg)
+      persistMessage(userMsg)
     }
-    store.messages.push(placeholder)
-    streamingId = placeholder.id
-    pendingSessionId = store.activeSessionId
-    store.aiReplying = true
+
+    // iframe 可见时，把用户消息同步发给 iframe
+    // const bridge = useIframeBridge()
+    // if (bridge.isVisible.value && text && mode === 'full') {
+    //   return bridge.relayUserMessage(text)
+    // }
+
+    // 创建占位 AI 消息（session_only / im_only 不显示 UI）
+    if (mode !== 'session_only' && mode !== 'im_only') {
+      const placeholder: Message = {
+        id: uuid(),
+        sessionId: store.activeSessionId,
+        role: 'assistant',
+        content: '',
+        thinking: ' ', // 触发 ThinkingBlock 动画
+        status: 'streaming',
+        createdAt: new Date().toISOString(),
+      }
+      store.messages.push(placeholder)
+      streamingId = placeholder.id
+      pendingSessionId = store.activeSessionId
+      store.aiReplying = true
+    }
 
     const session = store.sessions.find(s => s.id === store.activeSessionId)
     const hasContent = text || attachments.length > 0
@@ -304,8 +367,8 @@ export function useChat() {
       session.title = text ? text.slice(0, 20) : '语音消息'
     }
 
-    // 确保后端会话存在
-    if (session && !session.backendId && hasContent) {
+    // 确保后端会话存在（full / session_only 才需要后端记录）
+    if ((mode === 'full' || mode === 'session_only') && session && !session.backendId && hasContent) {
       try {
         const title = text ? text.slice(0, 50) : '语音消息'
         const res = await addChat({ chatTitle: title })
@@ -313,21 +376,35 @@ export function useChat() {
         if (pkId) session.backendId = pkId
       } catch { /* 接口失败时继续 */ }
     }
-    currentChatId = session?.backendId ?? null
+    currentChatId = (mode === 'full' || mode === 'session_only' || mode === 'im') ? (session?.backendId ?? null) : null
 
     // 构建系统上下文（token + 角色系统提示），对 IM 和后端接口共用
     const role = auth.currentRole.value
     // 360浏览器安全过滤会剥离 <pcAction> 标签，改用方括号格式
     const actionFormatHint = is360Browser() ? ' action-tag-format: bracket ' : ''
+    // 生成 requestId 嵌入 <system>，AI 回复时携带，用于精确匹配回复元数据
+    const requestId = uuid()
     const sysLines = [
       role?.userRolePrompt || '',
       ` operate-port: 2 ${actionFormatHint}`,
+      fromIframe ? 'source: iframe' : '',
+      `request-id: ${requestId}`,
       auth.token.value ? `用户令牌：${auth.token.value}` : '',
     ].filter(Boolean).join('\n')
     const sysBlock = sysLines ? `<system>\n${sysLines}\n</system>\n\n` : ''
 
-    // 保存用户消息到后端
-    if (currentChatId && hasContent) {
+    // 记录本次发送的元数据（session_only 不等 AI 回复，无需记录）
+    if (mode !== 'session_only') {
+      replyMap.set(requestId, {
+        streamingId: mode !== 'im_only' ? streamingId : null,
+        mode,
+        iframeRelay: fromIframe,
+        chatId: currentChatId,
+      })
+    }
+
+    // 保存用户消息到后端（full / session_only 才保存）
+    if ((mode === 'full' || mode === 'session_only') && currentChatId && hasContent) {
       addChatRecordData({
         fkChatId: currentChatId,
         chatContent: sysBlock + (text || ''),
@@ -343,6 +420,14 @@ export function useChat() {
       }).catch(() => { })
     }
 
+    // session_only：已存后端记录，不发 IM，直接结束
+    if (mode === 'session_only') {
+      userMsg.status = 'done'
+      persistMessage(userMsg)
+      return
+    }
+    const bridge = useIframeBridge()
+    if (bridge.isVisible.value && text && mode === 'full') { return bridge.relayUserMessage(text) }
     try {
       // 构建发送文本（包含附件 markdown）
       let textToSend = text || ''
@@ -367,7 +452,7 @@ export function useChat() {
         if (mediaMarkdown) textToSend = mediaMarkdown + (text ? '\n' + text : '')
       }
 
-      // 通过悟空IM发送消息到 AI 频道
+      // 通过悟空IM发送消息到 AI 频道（自定义消息类型，payload 携带 requestId）
       wkIM.sendText(sysBlock + textToSend)
       userMsg.status = 'done'
       persistMessage(userMsg)
@@ -422,6 +507,7 @@ export function useChat() {
               const iframeAction = extractIframeAction(rawContent)
               if (iframeAction) cleanedContent = stripActionJson(rawContent)
             }
+            cleanedContent = stripJsBlock(cleanedContent)
           }
 
           return {
@@ -479,6 +565,7 @@ export function useChat() {
     streamingId = null
     pendingSessionId = null
     currentChatId = null
+    replyMap.clear()
   }
 
   return { send, newSession, loadSession, deleteSession, loadSessions, resetState }
