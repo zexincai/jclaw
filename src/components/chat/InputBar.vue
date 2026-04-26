@@ -3,7 +3,7 @@
     'bg-white shrink-0 transition-all duration-500',
     isWelcome ? 'border-0' : 'border-t border-gray-100'
   ]">
-    <QuickActions v-if="!isWelcome" @action="text = $event" />
+    <QuickActions v-if="!isWelcome" @action="selectedAction = $event" />
     <div :class="['px-4 pb-3', isWelcome ? 'pt-0' : 'pt-2']">
       <div v-if="isRecording" class="transition-all">
         <VoiceRecorder @cancel="isRecording = false" @finish="handleVoiceFinish" />
@@ -40,7 +40,15 @@
           <div class="h-full bg-blue-500 transition-all duration-300 ease-out" :style="{ width: `${uploadProgress}%` }"></div>
         </div>
         
-        <textarea v-model="text" @keydown.enter.exact.prevent="submit" @paste="handlePaste" rows="2" placeholder="可以描述任务或提问任何问题"
+        <!-- 快捷语 tag 展示 -->
+        <div v-if="selectedAction" class="flex items-center gap-2 px-4 pt-4 pb-1">
+          <span class="flex items-center gap-1 px-2 py-1 bg-red-50 border border-red-200 text-red-500 text-xs rounded-full shrink-0">
+            {{ selectedAction.title }}
+            <button @click="selectedAction = null" class="hover:text-red-700 transition-colors leading-none">×</button>
+          </span>
+          <span class="text-sm text-gray-600 truncate">{{ selectedAction.words }}</span>
+        </div>
+        <textarea v-else v-model="text" @keydown.enter.exact.prevent="submit" @paste="handlePaste" rows="2" placeholder="可以描述任务或提问任何问题"
           class="px-4 pt-4 text-sm text-gray-700 resize-none outline-none placeholder-gray-400 bg-white" />
         <div class="flex items-center justify-between px-3 pb-3 bg-white">
           <div class="flex gap-2 text-gray-400">
@@ -55,7 +63,7 @@
             <button @click="isRecording = true" class="p-1.5 text-gray-400 hover:text-blue-500 transition-colors" title="语音输入">
               <Mic :size="18" />
             </button>
-            <button @click="submit" :disabled="!text.trim() && files.length === 0"
+            <button @click="submit" :disabled="!selectedAction && !text.trim() && files.length === 0"
               class="p-2 bg-blue-500 text-white rounded-full disabled:opacity-30 hover:bg-blue-600 transition-all shadow-md active:scale-95">
               <Send :size="16" />
             </button>
@@ -97,6 +105,7 @@ defineProps<{
 
 const chat = useChat()
 const text = ref('')
+const selectedAction = ref<{ title: string; words: string } | null>(null)
 const files = ref<Attachment[]>([])
 const toast = ref('')
 const isRecording = ref(false)
@@ -168,11 +177,12 @@ async function handlePaste(e: ClipboardEvent) {
 }
 
 async function submit() {
-  const t = text.value.trim()
+  const t = selectedAction.value?.words || text.value.trim()
   if (!t && files.value.length === 0) return
   toast.value = ''
   const att = [...files.value]
   text.value = ''
+  selectedAction.value = null
   files.value = []
   await chat.send(t, att)
 }

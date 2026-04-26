@@ -59,7 +59,9 @@
         <MarkdownContent :content="message.content || ''" :streaming="message.status === 'streaming'" />
         <ActionCard v-if="message.actionJson && !message.actionJson.autoOpen" :modal="message.actionJson.modal"
           @trigger="emit('open-modal', message.actionJson!)" />
-        <ActionTagButton v-if="message.platformAction" :action="message.platformAction" />
+        <div v-if="message.platformActions?.length" class="flex flex-wrap gap-2 mt-1">
+          <ActionTagButton v-for="(act, i) in message.platformActions" :key="i" :action="act" />
+        </div>
       </div>
     </div>
   </div>

@@ -43,7 +43,7 @@ export interface Message {
   content: string;
   thinking?: string;
   actionJson?: ActionPayload;
-  platformAction?: PlatformAction;
+  platformActions?: PlatformAction[];
   attachments?: Attachment[];
   status: "sending" | "streaming" | "done" | "error";
   createdAt: string;
