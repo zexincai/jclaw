@@ -84,7 +84,7 @@ import {
   type EngAgentChatQuickVO,
 } from '../../api/chatQuick'
 
-const emit = defineEmits<{ action: [message: string] }>()
+const emit = defineEmits<{ action: [{ title: string; words: string }] }>()
 
 const TABS = [
   { type: '0', label: '待办事项', icon: ListTodo },
@@ -143,7 +143,7 @@ function closePopup() {
 }
 
 function selectItem(item: EngAgentChatQuickVO) {
-  emit('action', item.quickWords || '')
+  emit('action', { title: item.quickTitle || '', words: item.quickWords || '' })
   closePopup()
 }
 

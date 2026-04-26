@@ -19,7 +19,8 @@
       "Bash(pip3 install:*)",
       "Bash(python3 -c \":*)",
       "Bash(python3 -:*)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(grep -r \"marked\\\\|markdown-it\\\\|renderer\\\\|extension\" /Users/lion/Documents/learn/app-jw-web/src --include=*.ts --include=*.js --include=*.vue)"
     ]
   }
 }

@@ -59,9 +59,9 @@
       </div>
     </div>
 
-    <!-- 底部：用量 + 设置 -->
-    <div class="p-3 border-t border-gray-100 shrink-0">
-      <UsageBar />
+    <!-- 底部：账号切换 + 设置 -->
+    <div class="px-3 py-2.5 border-t border-gray-100 shrink-0">
+      <ProjectSwitcherPopover />
     </div>
   </div>
 </template>
@@ -71,7 +71,7 @@ import { ref, computed } from 'vue'
 import { Search, ChevronDown, Trash2, Plus } from 'lucide-vue-next'
 import { useChatStore } from '../../stores/chat'
 import { useChat } from '../../composables/useChat'
-import UsageBar from '../ui/UsageBar.vue'
+import ProjectSwitcherPopover from './ProjectSwitcherPopover.vue'
 
 const store = useChatStore()
 const chat = useChat()

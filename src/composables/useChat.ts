@@ -74,26 +74,53 @@ function detectPlatform(): 'pc' | 'app' | 'desk' {
   return 'pc'
 }
 
-/** 提取当前平台的 action 标签 */
-function extractPlatformAction(content: string): PlatformAction | undefined {
-  const tagMap = { pc: 'pcAction', app: 'appAction', desk: 'deskAction' }
-  const tag = tagMap[detectPlatform()]
-  const re = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, 'i')
-  const match = content.match(re)
-  if (!match) return undefined
-  try {
-    const parsed = JSON.parse(match[1].trim())
-    if (parsed.label) return { label: parsed.label, payload: parsed }
-  } catch { /* ignore */ }
-  return undefined
+/** 检测是否为360浏览器（其安全过滤器会剥离 HTML-like 标签） */
+function is360Browser(): boolean {
+  if (typeof navigator === 'undefined') return false
+  return /360SE|360EE|QIHU/i.test(navigator.userAgent)
 }
 
-/** 剥离所有平台 action 标签 */
+/** 提取当前平台的所有 action 标签，支持 <pcAction> 和 [pcAction] 两种格式 */
+function extractPlatformActions(content: string): PlatformAction[] {
+  const tagMap = { pc: 'pcAction', app: 'appAction', desk: 'deskAction' }
+  const platformTag = tagMap[detectPlatform()]
+  const tagsToTry = [platformTag, ...Object.values(tagMap).filter(t => t !== platformTag)]
+
+  for (const tag of tagsToTry) {
+    const patterns = [
+      new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, 'gi'),
+      new RegExp(`\\[${tag}\\]([\\s\\S]*?)\\[\\/${tag}\\]`, 'gi'),
+    ]
+    for (const re of patterns) {
+      const actions: PlatformAction[] = []
+      let match: RegExpExecArray | null
+      while ((match = re.exec(content)) !== null) {
+        try {
+          const parsed = JSON.parse(match[1].trim())
+          if (parsed.label) actions.push({ label: parsed.label, payload: parsed })
+        } catch { /* ignore */ }
+      }
+      if (actions.length > 0) return actions
+    }
+  }
+  return []
+}
+
+/** 判断 action 标签是否出现在 Markdown 表格行中 */
+function hasActionInTableCell(content: string): boolean {
+  const tagPattern = /<pcAction>|<appAction>|<deskAction>|\[pcAction\]|\[appAction\]|\[deskAction\]/i
+  return content.split('\n').some(line => line.trim().startsWith('|') && tagPattern.test(line))
+}
+
+/** 剥离所有平台 action 标签（同时支持 <tag> 和 [tag] 两种格式） */
 function stripAllActionTags(content: string): string {
   return content
     .replace(/<pcAction>[\s\S]*?<\/pcAction>/gi, '')
     .replace(/<appAction>[\s\S]*?<\/appAction>/gi, '')
     .replace(/<deskAction>[\s\S]*?<\/deskAction>/gi, '')
+    .replace(/\[pcAction\][\s\S]*?\[\/pcAction\]/gi, '')
+    .replace(/\[appAction\][\s\S]*?\[\/appAction\]/gi, '')
+    .replace(/\[deskAction\][\s\S]*?\[\/deskAction\]/gi, '')
     .trim()
 }
 
@@ -110,7 +137,7 @@ function extractText(message: unknown): string {
 }
 
 function persistMessage(msg: Message) {
-  if (msg.role === 'assistant' && !msg.content.trim() && !msg.thinking?.trim() && !msg.platformAction && !msg.actionJson) {
+  if (msg.role === 'assistant' && !msg.content.trim() && !msg.thinking?.trim() && !msg.platformActions?.length && !msg.actionJson) {
     return
   }
   const key = `jclaw_msgs_${msg.sessionId}`
@@ -130,25 +157,28 @@ function handleIncomingAIMessage(store: ReturnType<typeof useChatStore>, bridge:
   const msgId = streamingId || uuid()
 
   // 平台 Action 标签
-  const platformAction = extractPlatformAction(text)
+  const platformActions = extractPlatformActions(text)
+  const hasPlatformActions = platformActions.length > 0
+  const actionsInTable = hasPlatformActions && hasActionInTableCell(text)
   // iframe 跳转指令
-  const iframeAction = !platformAction ? extractIframeAction(text) : undefined
+  const iframeAction = !hasPlatformActions ? extractIframeAction(text) : undefined
   // open_modal 指令
-  const action = !platformAction && !iframeAction ? extractAction(text) : undefined
+  const action = !hasPlatformActions && !iframeAction ? extractAction(text) : undefined
 
   const msg: Message = {
     id: msgId,
     sessionId: pendingSessionId ?? store.activeSessionId,
     role: 'assistant',
-    content: platformAction
-      ? stripAllActionTags(text)
+    content: hasPlatformActions
+      ? (actionsInTable ? text : stripAllActionTags(text))
       : (iframeAction || action)
         ? stripActionJson(text)
         : text,
     thinking: thinking || undefined,
     status: 'done',
     createdAt: new Date().toISOString(),
-    ...(platformAction ? { platformAction } : {}),
+    // 表格内联 action 已由 MarkdownContent 渲染，不重复设置 platformActions
+    ...(!actionsInTable && hasPlatformActions ? { platformActions } : {}),
     ...(action ? { actionJson: action } : {}),
   }
 
@@ -212,8 +242,10 @@ export function useChat() {
 
       const text = extractText(rawMsg)
       if (!text) return
-
-      handleIncomingAIMessage(store, bridge, text)
+      // msg.fromUID == 用户手机号码
+      if (msg.fromUID === `${currentUser.telephone}`) {
+        handleIncomingAIMessage(store, bridge, text)
+      }
     })
   }
 
@@ -285,9 +317,11 @@ export function useChat() {
 
     // 构建系统上下文（token + 角色系统提示），对 IM 和后端接口共用
     const role = auth.currentRole.value
+    // 360浏览器安全过滤会剥离 <pcAction> 标签，改用方括号格式
+    const actionFormatHint = is360Browser() ? ' action-tag-format: bracket ' : ''
     const sysLines = [
       role?.userRolePrompt || '',
-      ` operate-port: 2 `,
+      ` operate-port: 2 ${actionFormatHint}`,
       auth.token.value ? `用户令牌：${auth.token.value}` : '',
     ].filter(Boolean).join('\n')
     const sysBlock = sysLines ? `<system>\n${sysLines}\n</system>\n\n` : ''
@@ -372,13 +406,18 @@ export function useChat() {
 
           const rawContent = stripSystemBlock(r.chatContent || '')
           const isAssistant = String(r.chatObject) === '1'
-          let platformAction: PlatformAction | undefined
+          let platformActions: PlatformAction[] = []
           let cleanedContent = rawContent
 
           if (isAssistant) {
-            platformAction = extractPlatformAction(rawContent)
-            if (platformAction) {
-              cleanedContent = stripAllActionTags(rawContent)
+            platformActions = extractPlatformActions(rawContent)
+            if (platformActions.length > 0) {
+              if (hasActionInTableCell(rawContent)) {
+                // 表格内联 action，由 MarkdownContent 渲染，不重复输出到 platformActions
+                platformActions = []
+              } else {
+                cleanedContent = stripAllActionTags(rawContent)
+              }
             } else {
               const iframeAction = extractIframeAction(rawContent)
               if (iframeAction) cleanedContent = stripActionJson(rawContent)
@@ -393,7 +432,7 @@ export function useChat() {
             status: 'done' as const,
             createdAt: r.createTime || new Date().toISOString(),
             ...(attachments ? { attachments } : {}),
-            ...(platformAction ? { platformAction } : {}),
+            ...(platformActions.length > 0 ? { platformActions } : {}),
           }
         })
         .filter(m => m.content.trim() || m.attachments)

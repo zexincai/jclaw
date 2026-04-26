@@ -9,12 +9,14 @@
            prose-pre:bg-gray-900 prose-pre:text-gray-100"
     :class="{ 'streaming-cursor': streaming }"
     v-html="rendered"
+    @click="handleContainerClick"
   />
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { marked } from 'marked'
+import { useIframeBridge } from '../../composables/useIframeBridge'
 
 marked.setOptions({ breaks: true })
 
@@ -23,5 +25,76 @@ const props = defineProps<{
   streaming?: boolean
 }>()
 
-const rendered = computed(() => marked.parse(props.content || '') as string)
+const bridge = useIframeBridge()
+
+function detectPlatformTag(): string {
+  if (typeof window !== 'undefined' && (window as unknown as Record<string, unknown>).__ELECTRON__) return 'deskAction'
+  if (typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent)) return 'appAction'
+  return 'pcAction'
+}
+
+function preprocessActions(content: string): string {
+  const tag = detectPlatformTag()
+  const patterns = [
+    new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, 'gi'),
+    new RegExp(`\\[${tag}\\]([\\s\\S]*?)\\[\\/${tag}\\]`, 'gi'),
+  ]
+
+  // 第一步：用占位符替换 action 标签，避免 marked 解析表格时破坏结构
+  const buttonMap = new Map<string, string>()
+  let counter = 0
+  let result = content
+  for (const re of patterns) {
+    result = result.replace(re, (_, json) => {
+      try {
+        const data = JSON.parse(json.trim())
+        const escaped = JSON.stringify(data).replace(/"/g, '&quot;')
+        const key = `PCACTION_PLACEHOLDER_${counter++}_END`
+        buttonMap.set(key, `<button class="pc-action-inline-btn" data-action="${escaped}">${data.label || '操作'}</button>`)
+        return key
+      } catch {
+        return ''
+      }
+    })
+  }
+
+  // 第二步：marked 解析（占位符是普通文本，不会被干扰）
+  let html = marked.parse(result) as string
+
+  // 第三步：还原占位符为按钮 HTML
+  for (const [key, btn] of buttonMap) {
+    html = html.replaceAll(key, btn)
+  }
+  return html
+}
+
+const rendered = computed(() => preprocessActions(props.content || ''))
+
+function handleContainerClick(e: MouseEvent) {
+  const btn = (e.target as HTMLElement).closest<HTMLElement>('.pc-action-inline-btn')
+  if (!btn) return
+  try {
+    const payload = JSON.parse(btn.dataset.action || '')
+    bridge.dispatchAction(payload)
+  } catch { /* ignore */ }
+}
 </script>
+
+<style scoped>
+:deep(.pc-action-inline-btn) {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  font-size: 12px;
+  color: #3b82f6;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+:deep(.pc-action-inline-btn:hover) {
+  background: #dbeafe;
+}
+</style>
