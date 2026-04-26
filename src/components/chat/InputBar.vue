@@ -29,34 +29,33 @@
       @drop.prevent="handleDrop"
       >
         <!-- 拖拽提示层 -->
-        <div v-if="isDragging" class="absolute inset-0 z-20 bg-blue-500/5 flex items-center justify-center pointer-events-none">
-          <div class="px-4 py-2 bg-white rounded-full shadow-lg border border-blue-100 text-blue-600 text-sm font-medium flex items-center gap-2">
+        <div v-if="isDragging" class="absolute inset-0 z-20 flex items-center justify-center pointer-events-none bg-blue-500/5">
+          <div class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 bg-white border border-blue-100 rounded-full shadow-lg">
             <Upload :size="16" /> 释放鼠标以上传文件
           </div>
         </div>
 
         <!-- 上传进度条 -->
         <div v-if="uploadProgress !== null" class="absolute top-0 left-0 right-0 h-0.5 bg-gray-100 z-10">
-          <div class="h-full bg-blue-500 transition-all duration-300 ease-out" :style="{ width: `${uploadProgress}%` }"></div>
+          <div class="h-full transition-all duration-300 ease-out bg-blue-500" :style="{ width: `${uploadProgress}%` }"></div>
         </div>
         
         <!-- 快捷语 tag 展示 -->
-        <div v-if="selectedAction" class="flex items-center gap-2 px-4 pt-4 pb-1">
-          <span class="flex items-center gap-1 px-2 py-1 bg-red-50 border border-red-200 text-red-500 text-xs rounded-full shrink-0">
+        <div v-if="selectedAction" class="flex items-center gap-2 px-4 pt-3 pb-0">
+          <span class="flex items-center gap-1 px-2 py-1 text-xs text-red-500 border border-red-200 rounded-full bg-red-50 shrink-0">
             {{ selectedAction.title }}
-            <button @click="selectedAction = null" class="hover:text-red-700 transition-colors leading-none">×</button>
+            <button @click="selectedAction = null; text = ''" class="leading-none transition-colors hover:text-red-700">×</button>
           </span>
-          <span class="text-sm text-gray-600 truncate">{{ selectedAction.words }}</span>
         </div>
-        <textarea v-else v-model="text" @keydown.enter.exact.prevent="submit" @paste="handlePaste" rows="2" placeholder="可以描述任务或提问任何问题"
-          class="px-4 pt-4 text-sm text-gray-700 resize-none outline-none placeholder-gray-400 bg-white" />
+        <textarea v-model="text" @keydown.enter.exact.prevent="submit" @paste="handlePaste" rows="2" placeholder="可以描述任务或提问任何问题"
+          class="px-4 pt-3 text-sm text-gray-700 placeholder-gray-400 bg-white outline-none resize-none" />
         <div class="flex items-center justify-between px-3 pb-3 bg-white">
           <div class="flex gap-2 text-gray-400">
             <FileUpload accept="image/*" @file="handleFile" @progress="uploadProgress = $event" @error="toast = $event">
-              <Image :size="18" class="hover:text-blue-500 transition-colors" />
+              <Image :size="18" class="transition-colors hover:text-blue-500" />
             </FileUpload>
             <FileUpload accept=".pdf,.txt,image/*" @file="handleFile" @progress="uploadProgress = $event" @error="toast = $event">
-              <Paperclip :size="18" class="hover:text-blue-500 transition-colors" />
+              <Paperclip :size="18" class="transition-colors hover:text-blue-500" />
             </FileUpload>
           </div>
           <div class="flex items-center gap-3">
@@ -64,7 +63,7 @@
               <Mic :size="18" />
             </button>
             <button @click="submit" :disabled="!selectedAction && !text.trim() && files.length === 0"
-              class="p-2 bg-blue-500 text-white rounded-full disabled:opacity-30 hover:bg-blue-600 transition-all shadow-md active:scale-95">
+              class="p-2 text-white transition-all bg-blue-500 rounded-full shadow-md disabled:opacity-30 hover:bg-blue-600 active:scale-95">
               <Send :size="16" />
             </button>
           </div>
@@ -75,10 +74,10 @@
       <div v-if="files.length" class="flex flex-wrap gap-1.5 mt-2">
         <div v-for="(f, i) in files" :key="i"
           class="flex items-center gap-1 px-2 py-1 bg-blue-50/50 border border-blue-100 rounded-lg text-[10px] text-blue-700">
-          <img v-if="f.previewUrl" :src="f.previewUrl" class="w-4 h-4 rounded object-cover" />
+          <img v-if="f.previewUrl" :src="f.previewUrl" class="object-cover w-4 h-4 rounded" />
           <Paperclip v-else :size="10" />
           <span class="truncate max-w-[80px] font-medium">{{ f.name }}</span>
-          <button @click="files.splice(i, 1)" class="text-blue-300 hover:text-blue-500 transition-colors">×</button>
+          <button @click="files.splice(i, 1)" class="text-blue-300 transition-colors hover:text-blue-500">×</button>
         </div>
       </div>
 
@@ -89,7 +88,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { Image, Paperclip, Mic, Send, Upload } from 'lucide-vue-next'
 import type { Attachment } from '../../stores/chat'
 import { useChat } from '../../composables/useChat'
@@ -106,6 +105,12 @@ defineProps<{
 const chat = useChat()
 const text = ref('')
 const selectedAction = ref<{ title: string; words: string } | null>(null)
+watch(selectedAction, (action) => {
+  text.value = action?.words ?? ''
+})
+watch(text, (val) => {
+  if (!val && selectedAction.value) selectedAction.value = null
+})
 const files = ref<Attachment[]>([])
 const toast = ref('')
 const isRecording = ref(false)
@@ -177,7 +182,7 @@ async function handlePaste(e: ClipboardEvent) {
 }
 
 async function submit() {
-  const t = selectedAction.value?.words || text.value.trim()
+  const t = text.value.trim()
   if (!t && files.value.length === 0) return
   toast.value = ''
   const att = [...files.value]

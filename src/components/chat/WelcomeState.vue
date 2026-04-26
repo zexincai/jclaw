@@ -18,14 +18,12 @@
       class="w-full max-w-2xl bg-white rounded-3xl border border-gray-100 shadow-2xl shadow-slate-200/50 overflow-hidden animate-in fade-in zoom-in duration-500 delay-200">
       <!-- 快捷操作栏 -->
       <div class="flex items-center gap-3 px-6 pt-6 pb-2 overflow-x-auto scrollbar-none">
-        <div v-for="tab in TABS" :key="tab.type" class="relative shrink-0" :ref="el => setTabRef(tab.type, el)">
+        <div v-for="tab in tabs" :key="tab.type" class="relative shrink-0" :ref="el => setTabRef(tab.type, el)">
           <button @click="togglePopup(tab.type)"
             class="flex items-center gap-2 px-4 py-2 border rounded-full text-sm font-medium transition-all group"
             :class="openType === tab.type
               ? 'bg-blue-50 border-blue-200 text-blue-600'
               : 'bg-gray-50 hover:bg-white hover:shadow-md border-gray-100 text-gray-600'">
-            <component :is="tab.icon" :size="16" class="group-hover:text-blue-500"
-              :class="openType === tab.type ? 'text-blue-500' : 'text-gray-400'" />
             <span>{{ tab.label }}</span>
             <ChevronRight :size="14"
               :class="openType === tab.type ? 'text-blue-300' : 'text-gray-300 group-hover:text-blue-300'" />
@@ -80,7 +78,7 @@
       @click="closeDialog">
       <div class="bg-white rounded-xl shadow-xl w-96 p-6" @click.stop>
         <div class="mb-4 text-sm text-gray-400 text-center">
-          {{TABS.find(t => t.type === openType)?.label}}
+          {{tabs.find(t => t.type === openType)?.label}}
         </div>
         <div class="space-y-4">
           <div class="flex items-center gap-3">
@@ -106,8 +104,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { ListTodo, FileEdit, Search, BarChart2, ChevronRight, Plus, Trash2 } from 'lucide-vue-next'
+import { ref, onMounted } from 'vue'
+import { ChevronRight, Plus, Trash2 } from 'lucide-vue-next'
 import logoUrl from '../../assets/logo.png'
 import InputBar from './InputBar.vue'
 import { useChat } from '../../composables/useChat'
@@ -115,17 +113,25 @@ import {
   getUserAccountChatQuickList,
   addChatQuick,
   deleteChatQuick,
+  getQuickTypeList,
   type EngAgentChatQuickVO,
 } from '../../api/chatQuick'
 
 const chat = useChat()
 
-const TABS = [
-  { type: '0', label: '待办事项', icon: ListTodo },
-  { type: '1', label: '录入资料', icon: FileEdit },
-  { type: '2', label: '查询记录', icon: Search },
-  { type: '3', label: '汇总数据', icon: BarChart2 },
-]
+const tabs = ref<{ type: string; label: string }[]>([])
+
+onMounted(async () => {
+  try {
+    const res = await getQuickTypeList()
+    const data = (res as any).data
+    const list = Array.isArray(data) ? data : (data?.data ?? [])
+    tabs.value = list.map((item: any) => ({
+      type: String(item.quickTypeValue),
+      label: item.quickTypeTitle,
+    }))
+  } catch { /* 加载失败静默处理 */ }
+})
 
 const openType = ref<string | null>(null)
 const popupPos = ref<{ bottom: number; left: number } | null>(null)

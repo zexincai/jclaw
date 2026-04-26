@@ -105,6 +105,18 @@ export function updateChatQuick(params: EngAgentChatQuickUpdate) {
   return http.put<AjaxResult<object>>('/eng/chatQuick/update', params)
 }
 
+export interface QuickTypeItem {
+  quickTypeTitle: string
+  quickTypeValue: string
+}
+
+/**
+ * 获取快捷语类型列表
+ */
+export function getQuickTypeList() {
+  return http.get<AjaxResult<QuickTypeItem[]>>('/eng/chatQuick/getQuickTypeList')
+}
+
 // ==================== 常量枚举 ====================
 
 /** 快捷会话类型 */
