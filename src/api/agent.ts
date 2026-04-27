@@ -121,6 +121,8 @@ export interface EngAgentUserVo {
   shortName?: string
   /** 手机号 */
   telephone?: string
+  /** 用户关联的定时任务编码列表 */
+  timingTaskCodeList?: number[]
 }
 
 // ==================== 智能体会话管理 - 响应数据接口 ====================
@@ -245,6 +247,7 @@ export function chatRecordDataSearchPage(params: {
 /**
  * 获取当前登陆者个人信息
  * @summary 获取当前用户信息
+ * 新增 timingTaskCodeList字段，返回用户关联的定时任务编码列表
  */
 export function getPersonalUserInfo() {
   return http.get<AjaxResult<EngAgentUserVo>>('/eng/agentUser/personal/info')
@@ -293,4 +296,161 @@ export interface EngVersionVo {
  */
 export function getMobileVersionInfo(mobileType: string) {
   return http.get<EngVersionVo[]>('/eng/version/getMobileVersionInfo', { mobileType })
+}
+
+
+// -------- 字典管理 --------
+
+/**
+ * 字典项 VO
+ * @description 字典数据视图对象
+ */
+export interface DictItemVo {
+  /** 字典编码 */
+  dictCode?: string
+  /** 字典值 */
+  dictValue?: string
+}
+
+/**
+ * 获取字典数据
+ * @summary 获取任务编码
+ * @param dictType 字典类型 (82: 任务编码)
+ */
+export function findDictByType(dictType: number) {
+  return http.get<AjaxResult<DictItemVo[]>>('/eng/dict/findDictByType', { dictType })
+}
+// -------- 定时任务管理 --------
+
+/**
+ * 任务开始时间
+ */
+export interface TaskStartTime {
+  hour?: number
+  minute?: number
+  nano?: number
+  second?: number
+}
+
+/**
+ * 任务规则详情
+ */
+export interface TimingTaskRuleDetails {
+  dayNum?: number // 代表时间（循环类型等于1时 类型（1-7）1代表周一，循环类型等于2时 类型（1-31）代表每日多少号
+  taskDate?: string // 任务时间 格式： yyyy-MM-dd, 只有每日、每年使用
+  taskStartTime?: string // 开始时间，格式：HH:MM:SS
+}
+
+/**
+ * 任务规则
+ */
+export interface TimingTaskRule {
+  circulateType?: number // 循环类型(每日：0，每周：1，每月：2，每年：3)
+  timingTaskRuleDetailsList?: TimingTaskRuleDetails[]
+  workType?: number // 工作类型(单次：0,循环：1)
+}
+
+/**
+ * 智能体定时任务 VO
+ */
+export interface AgentTimingTaskVo {
+  enableStatus?: number
+  taskCode?: number
+  timingTaskRuleList?: TimingTaskRule[]
+}
+
+/**
+ * 根据当前用户查询智能体定时任务列表
+ * @summary 查询定时任务列表
+ */
+export function searchTimingTaskByUserId() {
+  return http.get<AjaxResult<AgentTimingTaskVo[]>>('/eng/agentTimingTask/searchByUserId')
+}
+
+/**
+ * 新增或更新定时任务
+ * @summary 保存定时任务
+ * @param params 任务参数
+ */
+export function saveOrUpdateTimingTask(params: AgentTimingTaskVo) {
+  return http.post<AjaxResult<number>>('/eng/agentTimingTask/saveOrUpdate', params)
+}
+
+
+// -------- 待办任务管理 --------
+
+/**
+ * 待办任务项 VO
+ * @description 待办任务视图对象
+ */
+export interface BacklogItemVo {
+  /** 用章流程归属业务id */
+  belongSealBusinessId?: number
+  /** 业务类型：0:生产 1:计量结算 2:盘点 3:设计变更 4:用章管理 6:单位质量评定流程 7:分部质量评定流程 8:年度进度审批流程 9:季度进度审批流程 10:月度进度审批流程 11:分包合同审批流程 12:供货合同审批流程 13:供应商请款审批流程 14:分包商请款审批流程 15:成本审批流程 21:加工计价审批流程 22:加工合同审批流程 4:甲供盘点 */
+  bizType?: number
+  /** 业务类型：1:施工验收流程待办 2:业主计量流程待办 3:分包计价流程待办 4:变更设计流程待办 5:会议签到 6:技术交底 7:盘点流程待办 8:申请用章流程待办 9:收发文待办 10:商务用户续费 11:付费用户续费 12:短信签名申请 13:短信赠送及充值申请 14:合同签署 15:工资结算 16:工资发放 17:收发文指定人员待办 */
+  businessType?: number
+  /** 待办类型名称 */
+  businessTypeName?: string
+  /** 创建时间 */
+  createTime?: string
+  /** 创建用户（关联表sys_user） */
+  createUser?: number
+  /** 对应业务id */
+  fkBusinessId?: number
+  /** 流程实例ID（关联工作流的实例ID） */
+  fkFlowCaseId?: string
+  /** 流程任务ID */
+  fkFlowTaskId?: string
+  /** 节点ID（关联表：base_workflow_node） */
+  fkNodeId?: number
+  /** 关联人ID（关联表sys_user） */
+  fkUserId?: number
+  /** 负责人名称 */
+  fkUserName?: string
+  /** 办理状态（0:待办 1:已办 2:已过期） */
+  handleStatus?: number
+  /** 事项状态（0:正常待办 1:发起用章待办） */
+  matterStatus?: number
+  /** 事项类型：1:施工验收流程待办 2:业主计量流程待办 3:分包计价流程待办 4:变更设计流程待办 5:会议签到 6:技术交底 7:盘点流程待办 8:申请用章流程待办 9:收发文指定单位待办 10:商务用户续费 11:付费用户续费 12:短信签名申请 13:短信赠送及充值申请 14:合同签署 15:工资结算 16:工资发放 17:收发文指定人员待办 18:授权待办 19:质量隐患排查待办 20:安全隐患排查待办 21:甲供盘点流程待办 22:质量教育 23:安全教育 24:单位质量评定流程 25:分部质量评定流程 26:年度进度审批流程 27:季度进度审批流程 28:月度进度审批流程 29:分包合同审批流程 30:供货合同审批流程 31:供应商请款审批流程 32:分包商请款审批流程 33:成本审批流程 34:物资签收单 35:物资入库单 36:加工计价 37:加工合同审批流程 */
+  matterType?: number
+  /** 模拟发送：0，私下发送：1 */
+  mechanismType?: number
+  /** 主键 */
+  pkId?: number
+  /** 处理意见 */
+  processingOpinion?: string
+  /** 处理结果 */
+  processingResult?: string
+  /** 处理时间 */
+  processingTime?: string
+  /** 标段项目ID */
+  projectBidId?: number
+  /** 标段项目名称（注意：需要续期才有返回） */
+  projectBidName?: string
+  /** 小龙虾词语 */
+  quickLobsterWords?: string
+  /** 用户词语 */
+  quickWords?: string
+  /** 续期按钮显示（不显示：0 显示：1） */
+  renewalButton?: number
+  /** 负责岗位 */
+  roleName?: string
+  /** 业务场景：matterStatus=1时只有用到，1:生产 2:业主计量 3:分包计价 4:设计变更 5:盘点 6:甲供盘点 */
+  sealCode?: string
+  /** 是否盖章人节点（0:否 1:是） */
+  sealPersonStatus?: number
+  /** 标题 */
+  title?: string
+  /** 资金计划类型：0:资金预付款 1:资金进度款 2:资金审批 */
+  type?: number
+}
+
+/**
+ * 分页查询待办任务列表
+ * @summary 查询待办任务
+ * @param params 查询参数
+ */
+export function searchBacklogPageList(params?: any) {
+  return http.get<AjaxResult<PageInfo<BacklogItemVo>>>('/eng/agentUser/searchBacklogPageList', params)
 }

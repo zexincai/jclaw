@@ -88,6 +88,59 @@
             </p>
           </div>
 
+          <!-- 定时任务 -->
+          <div v-else-if="active === 'timing'" class="flex-1 p-6 overflow-y-auto">
+            <h3 class="text-sm font-semibold text-gray-700 mb-5">定时任务</h3>
+            <div v-if="timingLoading" class="flex items-center justify-center h-24 text-sm text-gray-400">加载中…</div>
+            <div v-else-if="userTasks.length === 0" class="flex items-center justify-center h-24 text-sm text-gray-400">暂无定时任务</div>
+            <div v-else class="space-y-3">
+              <div v-for="task in userTasks" :key="task.code" class="border border-gray-100 rounded-xl p-4">
+                <!-- 任务标题 + 开关 -->
+                <div class="flex items-center justify-between">
+                  <span class="text-sm text-gray-700">{{ task.name }}</span>
+                  <!-- Toggle switch -->
+                  <button
+                    @click="handleToggle(task)"
+                    :class="[
+                      'relative inline-flex w-10 h-5.5 rounded-full transition-colors shrink-0',
+                      task.enabled ? 'bg-blue-500' : 'bg-gray-200'
+                    ]"
+                    style="height:22px;width:40px;"
+                  >
+                    <span
+                      :class="[
+                        'absolute top-0.5 left-0.5 w-4.5 h-4.5 rounded-full bg-white shadow transition-transform',
+                        task.enabled ? 'translate-x-[18px]' : 'translate-x-0'
+                      ]"
+                      style="width:18px;height:18px;"
+                    />
+                  </button>
+                </div>
+                <!-- 未启用提示 -->
+                <div v-if="!task.enabled" class="mt-3 py-4 text-center text-sm text-gray-300 bg-gray-50 rounded-lg">
+                  未启用
+                </div>
+                <!-- 已启用时展示已配置的时间 -->
+                <div v-else class="mt-3 space-y-1">
+                  <div
+                    v-for="(rule, ri) in task.rules"
+                    :key="ri"
+                    class="flex items-center gap-2 text-xs text-gray-500"
+                  >
+                    <span class="text-gray-400">{{ ri + 1 }}.</span>
+                    <span>{{ ruleLabel(rule) }}</span>
+                    <span v-if="rule.workType === 0">{{ rule.taskDate }}</span>
+                    <span>{{ padTime(rule.hour) }}:{{ padTime(rule.minute) }}</span>
+                  </div>
+                  <button
+                    @click="openTimingModal(task)"
+                    class="mt-1 text-xs text-blue-500 hover:text-blue-600 transition-colors"
+                  >编辑触发时间</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- 关于我们 -->
           <div v-else-if="active === 'about'" class="flex-1 flex flex-col">
             <div class="flex-1 overflow-y-auto px-6 py-6">
@@ -150,16 +203,89 @@
 
         </div>
       </div>
+
+      <!-- 设置触发时间 弹窗（叠在设置弹窗之上） -->
+      <div v-if="timingModalVisible" class="absolute inset-0 z-10 flex items-center justify-center bg-black/20 rounded-2xl">
+        <div class="bg-white rounded-xl shadow-xl w-[480px] p-5">
+          <h4 class="text-sm font-semibold text-gray-800 mb-4">设置触发时间</h4>
+          <div class="space-y-2.5 mb-5">
+            <div v-for="(row, idx) in modalRows" :key="idx" class="flex items-center gap-2">
+              <span class="text-xs text-gray-400 w-4 shrink-0">{{ idx + 1 }}.</span>
+              <!-- 工作类型：单次 / 循环 -->
+              <select
+                v-model.number="row.workType"
+                class="text-xs border border-gray-200 rounded px-2 py-1.5 text-gray-700 bg-white outline-none focus:border-blue-400 w-16 shrink-0"
+              >
+                <option :value="0">单次</option>
+                <option :value="1">循环</option>
+              </select>
+              <!-- 循环子类型（仅循环时显示） -->
+              <select
+                v-if="row.workType === 1"
+                v-model.number="row.circulateType"
+                class="text-xs border border-gray-200 rounded px-2 py-1.5 text-gray-700 bg-white outline-none focus:border-blue-400 w-16 shrink-0"
+              >
+                <option :value="0">每日</option>
+                <option :value="1">每周</option>
+                <option :value="2">每月</option>
+                <option :value="3">每年</option>
+              </select>
+              <!-- 日期（仅单次时显示） -->
+              <input
+                v-if="row.workType === 0"
+                v-model="row.taskDate"
+                type="date"
+                class="text-xs border border-gray-200 rounded px-2 py-1.5 text-gray-700 outline-none focus:border-blue-400 w-36 shrink-0"
+              />
+              <!-- 时间 -->
+              <input
+                v-model="row.timeStr"
+                type="time"
+                class="text-xs border border-gray-200 rounded px-2 py-1.5 text-gray-700 outline-none focus:border-blue-400 w-24 shrink-0"
+              />
+              <!-- 删除 -->
+              <button
+                @click="removeRow(idx)"
+                :disabled="modalRows.length === 1"
+                class="shrink-0 w-6 h-6 flex items-center justify-center rounded border text-red-400 border-red-300 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed text-sm font-bold"
+              >-</button>
+              <!-- 新增（仅最后一行） -->
+              <button
+                v-if="idx === modalRows.length - 1"
+                @click="addRow"
+                class="shrink-0 w-6 h-6 flex items-center justify-center rounded border text-green-500 border-green-400 hover:bg-green-50 text-sm font-bold"
+              >+</button>
+              <span v-else class="w-6 shrink-0" />
+            </div>
+          </div>
+          <div class="flex justify-end gap-2">
+            <button
+              @click="timingModalVisible = false"
+              class="px-4 py-1.5 text-sm text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >取消</button>
+            <button
+              @click="confirmTimingModal"
+              :disabled="timingSaving"
+              class="px-4 py-1.5 text-sm text-white bg-blue-500 rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors"
+            >{{ timingSaving ? '保存中…' : '确定' }}</button>
+          </div>
+        </div>
+      </div>
+
     </div>
   </Teleport>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { Settings, BarChart2, Info, UserCircle } from 'lucide-vue-next'
+import { ref, onMounted, watch } from 'vue'
+import { Settings, BarChart2, Info, UserCircle, Clock } from 'lucide-vue-next'
 import { useChatStore } from '../../stores/chat'
 import { useAuth } from '../../composables/useAuth'
-import { getPersonalUserInfo, getMobileVersionInfo, type EngAgentUserVo, type EngVersionVo } from '../../api/agent'
+import {
+  getPersonalUserInfo, getMobileVersionInfo,
+  findDictByType, searchTimingTaskByUserId, saveOrUpdateTimingTask,
+  type EngAgentUserVo, type EngVersionVo, type AgentTimingTaskVo, type DictItemVo,
+} from '../../api/agent'
 import logoUrl from '../../assets/logo.png'
 
 const emit = defineEmits<{ close: [] }>()
@@ -168,7 +294,8 @@ const { logout } = useAuth()
 
 const tabs = [
   { id: 'general', label: '通用设置', icon: Settings },
-  { id: 'usage', label: '用量统计', icon: BarChart2 },
+  { id: 'timing', label: '定时任务', icon: Clock },
+  // { id: 'usage', label: '用量统计', icon: BarChart2 },
   { id: 'about', label: '关于我们', icon: Info },
 ]
 
@@ -178,6 +305,166 @@ const versionList = ref<EngVersionVo[]>([])
 const loadingVersions = ref(false)
 const hasLoadedVersions = ref(false)
 const currentVersion = ref('')
+
+// ── 定时任务 ──────────────────────────────────────────────────
+
+interface TimeRow {
+  workType: number      // 0=单次, 1=循环
+  circulateType: number // 循环子类型: 0=每日, 1=每周, 2=每月, 3=每年
+  taskDate: string      // 单次时使用 yyyy-MM-dd
+  timeStr: string       // 'HH:mm'
+}
+
+interface UserTask {
+  code: number
+  name: string
+  enabled: boolean
+  rules: Array<{ workType: number; circulateType: number; taskDate: string; hour: number; minute: number }>
+}
+
+const timingLoading = ref(false)
+const userTasks = ref<UserTask[]>([])
+const timingLoaded = ref(false)
+
+// 弹窗状态
+const timingModalVisible = ref(false)
+const timingSaving = ref(false)
+const modalTask = ref<UserTask | null>(null)
+const modalRows = ref<TimeRow[]>([])
+
+const WORK_TYPES: Record<number, string> = { 0: '单次', 1: '循环' }
+const CIRCULATE_TYPES: Record<number, string> = { 0: '每日', 1: '每周', 2: '每月', 3: '每年' }
+
+function ruleLabel(rule: { workType: number; circulateType: number }) {
+  if (rule.workType === 1) return CIRCULATE_TYPES[rule.circulateType] ?? '循环'
+  return '单次'
+}
+function padTime(n?: number) { return String(n ?? 0).padStart(2, '0') }
+
+function today() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function defaultRow(): TimeRow {
+  return { workType: 0, circulateType: 0, taskDate: today(), timeStr: '08:00' }
+}
+
+async function loadTimingTasks() {
+  if (timingLoaded.value || timingLoading.value) return
+  timingLoading.value = true
+  try {
+    const [userRes, dictRes, taskRes] = await Promise.all([
+      getPersonalUserInfo(),
+      findDictByType(82),
+      searchTimingTaskByUserId(),
+    ])
+    const info: EngAgentUserVo = (userRes as any).data ?? {}
+    const dictItems: any[] = (dictRes as any).data ?? []
+    const taskConfigs: AgentTimingTaskVo[] = (taskRes as any).data ?? []
+
+    userInfo.value = info
+
+    const codes: number[] = info.timingTaskCodeList ?? []
+    userTasks.value = codes.map(code => {
+      const dictItem = dictItems.find(d => String(d.keyName) === String(code))
+      const config = taskConfigs.find(t => t.taskCode === code)
+      const rules = (config?.timingTaskRuleList ?? []).flatMap(rule =>
+        (rule.timingTaskRuleDetailsList ?? []).map(d => {
+          const [h, m] = (d.taskStartTime as any as string ?? '08:00').split(':').map(Number)
+          return {
+            workType: rule.workType ?? 0,
+            circulateType: rule.circulateType ?? 0,
+            taskDate: d.taskDate ?? today(),
+            hour: isNaN(h) ? 8 : h,
+            minute: isNaN(m) ? 0 : m,
+          }
+        })
+      )
+      return {
+        code,
+        name: dictItem?.keyVal ?? `任务${code}`,
+        enabled: config?.enableStatus === 1,
+        rules,
+      }
+    })
+  } catch { /* 静默失败 */ } finally {
+    timingLoading.value = false
+    timingLoaded.value = true
+  }
+}
+
+// 切换到定时任务 tab 时加载
+watch(active, (val) => {
+  if (val === 'timing') loadTimingTasks()
+})
+
+function openTimingModal(task: UserTask) {
+  modalTask.value = task
+  modalRows.value = task.rules.length > 0
+    ? task.rules.map(r => ({
+        workType: r.workType,
+        circulateType: r.circulateType,
+        taskDate: r.taskDate,
+        timeStr: `${padTime(r.hour)}:${padTime(r.minute)}`,
+      }))
+    : [defaultRow()]
+  timingModalVisible.value = true
+}
+
+function handleToggle(task: UserTask) {
+  if (task.enabled) {
+    // 关闭：直接保存 enableStatus=0
+    task.enabled = false
+    saveOrUpdateTimingTask({ taskCode: task.code, enableStatus: 0 }).catch(() => {
+      task.enabled = true
+    })
+  } else {
+    // 开启：弹出时间配置弹窗
+    openTimingModal(task)
+  }
+}
+
+function addRow() {
+  modalRows.value.push(defaultRow())
+}
+
+function removeRow(idx: number) {
+  if (modalRows.value.length > 1) modalRows.value.splice(idx, 1)
+}
+
+async function confirmTimingModal() {
+  if (!modalTask.value || timingSaving.value) return
+  timingSaving.value = true
+  try {
+    const ruleList = modalRows.value.map(row => {
+      return {
+        workType: row.workType,
+        circulateType: row.workType === 1 ? row.circulateType : undefined,
+        timingTaskRuleDetailsList: [{
+          taskDate: row.workType === 0 ? row.taskDate : undefined,
+          taskStartTime: `${row.timeStr}:00`,
+        }],
+      }
+    })
+    await saveOrUpdateTimingTask({
+      taskCode: modalTask.value.code,
+      enableStatus: 1,
+      timingTaskRuleList: ruleList,
+    })
+    // 更新本地状态
+    const task = modalTask.value
+    task.enabled = true
+    task.rules = modalRows.value.map(row => {
+      const [h, m] = row.timeStr.split(':').map(Number)
+      return { workType: row.workType, circulateType: row.circulateType, taskDate: row.taskDate, hour: h, minute: m }
+    })
+    timingModalVisible.value = false
+  } catch { /* 静默失败 */ } finally {
+    timingSaving.value = false
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
 
 onMounted(async () => {
   try {
