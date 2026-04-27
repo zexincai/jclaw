@@ -70,7 +70,7 @@ export function useWukongIM() {
           callback(wsAddr)
         }
       } else {
-        WKSDK.shared().config.addr = 'ws://100.112.82.63:5200/' || wsAddr
+        WKSDK.shared().config.addr = wsAddr
       }
       currentTelephone = telephone
       WKSDK.shared().config.uid = userId

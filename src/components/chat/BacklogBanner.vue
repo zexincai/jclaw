@@ -8,75 +8,92 @@
       <span>待办事项 ({{ backlogTotal }})</span>
       <ChevronDown
         :size="14"
-        class="transition-transform text-gray-400"
+        class="text-gray-400 transition-transform"
         :class="expanded ? 'rotate-180' : ''"
       />
     </button>
 
-    <!-- 展开列表（绝对定位，悬浮在聊天内容上方） -->
+    <!-- 展开面板：左右两栏 -->
     <div
       v-if="expanded"
-      class="absolute top-full left-0 right-0 z-20 bg-white border-b border-gray-200 shadow-md max-h-80 overflow-y-auto"
+      class="absolute top-full left-0 z-20 bg-white border border-gray-200 rounded-b-lg shadow-lg w-[500px] flex"
+      style="max-height: 320px"
     >
-      <div
-        v-for="item in backlogItems"
-        :key="item.pkId"
-        class="flex items-center gap-3 px-4 py-2.5 border-b border-gray-50 hover:bg-gray-50 transition-colors"
-      >
-        <!-- 头像 -->
-        <div class="relative shrink-0">
-          <div
-            class="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold"
-            :style="{ backgroundColor: avatarColor(item) }"
-          >
-            {{ avatarText(item) }}
-          </div>
-          <span
-            v-if="isNew(item)"
-            class="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full border-2 border-white"
-          />
-        </div>
-
-        <!-- 内容 -->
-        <div class="flex-1 min-w-0">
-          <!-- 标签 -->
-          <div class="flex items-center gap-1 mb-0.5">
-            <span
-              v-if="item.businessTypeName"
-              class="inline-block px-1.5 py-0.5 rounded text-xs leading-tight"
-              :style="tagStyle(item)"
-            >{{ item.businessTypeName }}</span>
-            <span
-              v-if="item.roleName"
-              class="inline-block px-1.5 py-0.5 rounded text-xs leading-tight bg-gray-100 text-gray-500"
-            >{{ item.roleName }}</span>
-          </div>
-          <!-- 标题 -->
-          <p class="text-sm text-gray-800 truncate leading-snug">{{ item.title || '（无标题）' }}</p>
-          <!-- 发起人 + 时间 -->
-          <p class="text-xs text-gray-400 mt-0.5">
-            {{ item.fkUserName || '' }}
-            <span v-if="item.createTime" class="ml-1">{{ formatDate(item.createTime) }}</span>
-          </p>
-        </div>
-
-        <!-- 操作按钮 -->
+      <!-- 左侧角色列表：只显示头像 + 右上角数量角标 -->
+      <div class="py-1 overflow-y-auto border-r border-gray-100 w-14 shrink-0 bg-gray-50">
         <button
-          class="shrink-0 text-xs px-2.5 py-1 rounded border border-blue-400 text-blue-500 hover:bg-blue-50 transition-colors"
+          v-for="role in roleList"
+          :key="role.name"
+          @click="selectedRole = role.name"
+          class="w-full flex justify-center py-2.5 transition-colors relative"
+          :class="selectedRole === role.name ? 'bg-white' : 'hover:bg-gray-100'"
         >
-          {{ actionLabel(item) }}
+          <!-- 选中时左边蓝色竖线 -->
+          <span
+            v-if="selectedRole === role.name"
+            class="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-blue-500 rounded-r"
+          />
+          <!-- 头像 -->
+          <div class="relative">
+            <div
+              class="flex items-center justify-center w-8 h-8 text-sm font-semibold text-white rounded-full"
+              :style="{ backgroundColor: roleColor(role.name) }"
+            >
+              {{ role.name.charAt(0) }}
+            </div>
+            <!-- 数量角标 -->
+            <span
+              class="absolute -top-1 -right-1 min-w-[16px] h-4 px-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none"
+            >{{ role.count }}</span>
+          </div>
         </button>
       </div>
 
-      <div v-if="backlogItems.length === 0" class="py-6 text-center text-sm text-gray-400">
-        暂无待办
+      <!-- 右侧待办列表 -->
+      <div class="flex-1 overflow-y-auto">
+        <div
+          v-for="item in filteredItems"
+          :key="item.pkId"
+          class="flex items-center gap-3 px-3 py-2.5 border-b border-gray-50 hover:bg-gray-50 transition-colors"
+        >
+          <!-- 类型方块 -->
+          <div
+            class="flex items-center justify-center h-10 px-2 text-xs font-medium rounded-md shrink-0 whitespace-nowrap"
+            :style="typeBlockStyle(item)"
+          >
+            {{ item.businessTypeName || '?' }}
+          </div>
+
+          <!-- 内容 -->
+          <div class="flex-1 min-w-0">
+            <p class="text-sm leading-snug text-gray-800 truncate">{{ item.title || '（无标题）' }}</p>
+            <p class="text-xs text-gray-400 mt-0.5">
+              {{ item.fkUserName || '' }}
+              <span v-if="item.createTime" class="ml-1">{{ formatDate(item.createTime) }}</span>
+            </p>
+          </div>
+
+          <!-- 操作按钮 -->
+          <button
+            class="shrink-0 text-xs px-2.5 py-1 rounded border transition-colors"
+            :class="actionLabel(item) === '确认'
+              ? 'border-orange-400 text-orange-500 hover:bg-orange-50'
+              : 'border-blue-400 text-blue-500 hover:bg-blue-50'"
+          >
+            {{ actionLabel(item) }}
+          </button>
+        </div>
+
+        <div v-if="filteredItems.length === 0" class="py-6 text-sm text-center text-gray-400">
+          暂无待办
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { ChevronDown } from 'lucide-vue-next'
 import { useBacklog } from '../../composables/useBacklog'
 import type { BacklogItemVo } from '../../api/agent'
@@ -84,44 +101,64 @@ import type { BacklogItemVo } from '../../api/agent'
 const { backlogItems, backlogTotal } = useBacklog()
 const expanded = ref(false)
 
-// 颜色池，按 bizType 或 businessType 取色
+// 角色列表（去重 + 统计数量）
+const roleList = computed(() => {
+  const map = new Map<string, number>()
+  for (const item of backlogItems.value) {
+    const role = item.roleName || '未分配'
+    map.set(role, (map.get(role) ?? 0) + 1)
+  }
+  return Array.from(map.entries()).map(([name, count]) => ({ name, count }))
+})
+
+const selectedRole = ref('')
+watch(roleList, (list) => {
+  if (list.length && !selectedRole.value) {
+    selectedRole.value = list[0].name
+  }
+}, { immediate: true })
+
+const filteredItems = computed(() =>
+  backlogItems.value.filter(item => (item.roleName || '未分配') === selectedRole.value)
+)
+
+// 颜色池
 const COLORS = ['#4f9cf9', '#f97316', '#a78bfa', '#34d399', '#fb7185', '#fbbf24', '#60a5fa', '#f472b6']
 
-function avatarColor(item: BacklogItemVo): string {
-  const key = (item.bizType ?? item.businessType ?? 0) % COLORS.length
-  return COLORS[key]
+function roleColor(name: string): string {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  return COLORS[Math.abs(hash) % COLORS.length]
 }
 
-function avatarText(item: BacklogItemVo): string {
-  const name = item.businessTypeName ?? ''
-  return name.charAt(0) || '?'
-}
+// 类型方块：柔和背景色 + 深色文字
+const TYPE_BLOCK_COLORS = [
+  { bg: '#fde8e8', text: '#c0392b' },
+  { bg: '#e8f4fd', text: '#2471a3' },
+  { bg: '#e8fdf0', text: '#1e8449' },
+  { bg: '#fef9e7', text: '#b7770d' },
+  { bg: '#f0ebff', text: '#7d3c98' },
+  { bg: '#fdebd0', text: '#d35400' },
+  { bg: '#eaf2ff', text: '#1a5276' },
+  { bg: '#fdf2f8', text: '#c0392b' },
+]
 
-const TAG_COLORS: Record<number, { bg: string; text: string }> = {
-  1: { bg: '#e8f4fd', text: '#2b7abf' },
-  4: { bg: '#f0ebff', text: '#7c3aed' },
-  0: { bg: '#fff7e6', text: '#d97706' },
-}
-
-function tagStyle(item: BacklogItemVo) {
-  const c = TAG_COLORS[item.bizType ?? -1] ?? { bg: '#f3f4f6', text: '#6b7280' }
+function typeBlockStyle(item: BacklogItemVo) {
+  const key = (item.matterType ?? item.businessType ?? 0) % TYPE_BLOCK_COLORS.length
+  const c = TYPE_BLOCK_COLORS[key]
   return { backgroundColor: c.bg, color: c.text }
 }
 
-function isNew(item: BacklogItemVo): boolean {
-  // 将创建时间在最近24小时内的视为"新"待办
-  if (!item.createTime) return false
-  const created = new Date(item.createTime).getTime()
-  return Date.now() - created < 86400_000
-}
+// function isNew(item: BacklogItemVo): boolean {
+//   if (!item.createTime) return false
+//   return Date.now() - new Date(item.createTime).getTime() < 86400_000
+// }
 
 function formatDate(dateStr: string): string {
   return dateStr.replace('T', ' ').slice(0, 16)
 }
 
 function actionLabel(item: BacklogItemVo): string {
-  // matterStatus 1:发起用章待办 → 确认；其余 → 处理
-  if (item.matterStatus === 1) return '确认'
-  return '处理'
+  return item.matterStatus === 1 ? '确认' : '处理'
 }
 </script>
