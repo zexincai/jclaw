@@ -4,6 +4,7 @@ import { useChatStore } from '../stores/chat'
 import { clearMessagesCache } from '../utils/chatCache'
 import { useChat } from './useChat'
 import { useWukongIM } from './useWukongIM'
+import { useBacklog } from './useBacklog'
 export interface Role {
   userId: string
   loginName: string
@@ -162,6 +163,8 @@ export function useAuth() {
     useChat().resetState()
     // 清除 localStorage 中的消息缓存
     clearMessagesCache()
+    // 清除待办列表
+    useBacklog().reset()
   }
 
   async function loginByMobile(phoneNumber: string, code: string, uuid: string) {

@@ -136,6 +136,7 @@ import { useProjects } from './composables/useProjects'
 import { useChat } from './composables/useChat'
 import { useIframeBridge } from './composables/useIframeBridge'
 import { useAuth } from './composables/useAuth'
+import { useBacklog } from './composables/useBacklog'
 import { useChatStore } from './stores/chat'
 const store = useChatStore()
 const wkIM = useWukongIM()
@@ -143,6 +144,7 @@ const { init } = useProjects()
 const chat = useChat()
 const bridge = useIframeBridge()
 const auth = useAuth()
+const backlog = useBacklog()
 
 const sidePanelOpen = ref(true)
 const pairingModalVisible = ref(false)
@@ -234,6 +236,7 @@ async function initAndConnect() {
     }
   }
 
+  backlog.fetchBacklog()
   connectWS()
 }
 
