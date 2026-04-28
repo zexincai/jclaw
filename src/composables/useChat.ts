@@ -6,7 +6,8 @@ import type { Message, ActionPayload, Attachment, PlatformAction, Session } from
 import { useWukongIM } from './useWukongIM'
 import { useAuth } from './useAuth'
 import { useIframeBridge } from './useIframeBridge'
-import { addChat, addChatRecordData, deleteAgent, getUserAccountChatList, chatRecordDataSearchPage } from '../api/agent'
+import { useBacklog } from './useBacklog'
+import { addChat, addChatRecordData, deleteAgent, getUserAccountChatList, chatRecordDataSearchPage, type BacklogItemVo } from '../api/agent'
 
 function uuid(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
@@ -201,6 +202,15 @@ function handleIncomingAIMessage(store: ReturnType<typeof useChatStore>, bridge:
   const actionsInTable = hasPlatformActions && hasActionInTableCell(text)
   // iframe 跳转指令
   const iframeAction = !hasPlatformActions ? extractIframeAction(text) : undefined
+  console.log('platformActions', platformActions, 'iframeAction', iframeAction)
+  // 如果platformActions有值，找到第一个数据中isSkip为true时，调用 dispatchIframeAction 方法
+  if (platformActions.length > 0) {
+    const action = platformActions.find((action: any) => action?.payload?.isSkip === true)
+    if (action) {
+      const bridge = useIframeBridge()
+      bridge.dispatchAction(action.payload)
+    }
+  }
   // open_modal 指令
   const action = !hasPlatformActions && !iframeAction ? extractAction(text) : undefined
 
@@ -277,6 +287,44 @@ export function useChat() {
   const wkIM = useWukongIM()
   const auth = useAuth()
 
+  /**
+   * 将缓存中属于当前登录角色的 mechanismType===1 待办项静默发送给 IM
+   * 不显示 UI，不保存后端记录，不重复发送同一 pkId
+   */
+  async function autoSendPrivateItems() {
+    const { getUnsentPrivateItems, markPrivateItemsSent } = useBacklog()
+    const roles = auth.roles.value
+    const userIds = roles.map(r => String(r.userId))
+    const items = getUnsentPrivateItems(userIds)
+    if (!items.length) return
+
+    const role = auth.currentRole.value
+    const actionFormatHint = is360Browser() ? ' action-tag-format: bracket ' : ''
+
+    for (const item of items) {
+      const rawText = item.quickWords || ''
+      if (!rawText) continue
+      const { clean, payload } = extractPromptQuick(rawText)
+      if (payload) {
+        const bridge = useIframeBridge()
+        bridge.dispatchAction((payload.params as Record<string, unknown>) ?? payload)
+      }
+      const reqId = uuid()
+      const sysLines = [
+        role?.userRolePrompt || '',
+        ` operate-port: 2 ${actionFormatHint}`,
+        `request-id: ${reqId}`,
+        auth.token.value ? `用户令牌：${auth.token.value}` : '',
+      ].filter(Boolean).join('\n')
+      const sysBlock = sysLines ? `<system>\n${sysLines}\n</system>\n\n` : ''
+      // 注册 im_only，AI 回复不显示在 UI 也不保存后端
+      replyMap.set(reqId, { streamingId: null, mode: 'im_only', iframeRelay: false, chatId: null })
+      wkIM.sendText(sysBlock + clean)
+    }
+
+    markPrivateItemsSent(items.filter(i => i.pkId != null).map(i => i.pkId!))
+  }
+
   // 只初始化一次全局消息监听
   if (!initialized) {
     initialized = true
@@ -284,12 +332,16 @@ export function useChat() {
 
     // 监听来自悟空IM的消息
     wkIM.onMessage((rawMsg: unknown) => {
-      const msg = rawMsg as { fromUID?: string; contentType?: number; content?: unknown }
+      console.log('rawMsg', rawMsg)
+      const msg = rawMsg as { fromUID?: string; contentType?: number; content?: unknown | any }
       const currentUser = auth.currentRole.value
       if (!currentUser) return
       if (msg.fromUID === `${currentUser.userId}`) return
       if (msg.contentType !== 1 && msg.contentType !== 103 && msg.contentType !== 101) return
-
+      if (msg.content && msg.content?.contentType == 1006) {
+        useBacklog().fetchTypeTotals().then(() => autoSendPrivateItems())
+        return
+      }
       const text = extractText(rawMsg)
       if (!text) return
       // 从自定义消息 payload 提取 requestId（优先），降级由 handleIncomingAIMessage 解析文本
@@ -453,7 +505,8 @@ export function useChat() {
       }
 
       // 通过悟空IM发送消息到 AI 频道（自定义消息类型，payload 携带 requestId）
-      wkIM.sendText(sysBlock + textToSend)
+      
+      console.log('wkIM.sendText(sysBlock + textToSend)',wkIM.sendText(sysBlock + textToSend))
       userMsg.status = 'done'
       persistMessage(userMsg)
     } catch {
@@ -561,6 +614,26 @@ export function useChat() {
     } catch { /* ignore */ }
   }
 
+  /** 中断当前 AI 回复：保留已收到的内容，清理流式状态 */
+  function stopReply() {
+    if (streamingId) {
+      const idx = store.messages.findIndex(m => m.id === streamingId)
+      if (idx >= 0) {
+        const msg = store.messages[idx]
+        if (!msg.content.trim()) {
+          store.messages.splice(idx, 1)
+        } else {
+          store.messages[idx] = { ...msg, status: 'done', thinking: undefined }
+          persistMessage(store.messages[idx])
+        }
+      }
+      streamingId = null
+    }
+    pendingSessionId = null
+    replyMap.clear()
+    store.aiReplying = false
+  }
+
   function resetState() {
     streamingId = null
     pendingSessionId = null
@@ -568,5 +641,101 @@ export function useChat() {
     replyMap.clear()
   }
 
-  return { send, newSession, loadSession, deleteSession, loadSessions, resetState }
+  /**
+   * 从文本中提取并移除 <promptQuick> 标签，返回 { clean, payload }。
+   * payload 为标签内解析出的对象（若无标签则为 null）。
+   */
+  function extractPromptQuick(text: string): { clean: string; payload: Record<string, unknown> | null } {
+    const match = text.match(/<promptQuick>([\s\S]*?)<\/promptQuick>/i)
+    if (!match) return { clean: text, payload: null }
+    let payload: Record<string, unknown> | null = null
+    try { payload = JSON.parse(match[1].trim()) } catch { /* ignore */ }
+    const clean = text.replace(match[0], '').trim()
+    return { clean, payload }
+  }
+
+  /**
+   * 待办事项"模拟发送"：
+   * - quickWords 中若含 <promptQuick> 标签，提取后调用 dispatchAction，标签本身不保存到后端
+   * - 用户侧显示 quickWords（已去标签），AI 侧显示 quickLobsterWords
+   * - 两条记录均保存到后端，不经过 IM
+   */
+  async function sendBacklogItem(item: BacklogItemVo) {
+    const project = store.activeProject()
+    if (!project) return
+    ensureSession()
+
+    const rawUserText = item.quickWords || ''
+    const aiText      = item.quickLobsterWords || ''
+
+    // 提取 <promptQuick> 并得到干净文本
+    const { clean: userText, payload: quickPayload } = extractPromptQuick(rawUserText)
+
+    // 触发 iframe 动作（不保存到后端）
+    if (quickPayload) {
+      const bridge = useIframeBridge()
+      const params = (quickPayload.params as Record<string, unknown>) ?? quickPayload
+      bridge.dispatchAction(params)
+    }
+
+    if (!userText && !aiText) return
+
+    const now = new Date().toISOString()
+
+    // 用户消息入 store
+    if (userText) {
+      const userMsg: Message = {
+        id: uuid(),
+        sessionId: store.activeSessionId,
+        role: 'user',
+        content: userText,
+        status: 'done',
+        createdAt: now,
+      }
+      store.messages.push(userMsg)
+      persistMessage(userMsg)
+    }
+
+    // AI 消息入 store
+    if (aiText) {
+      const aiMsg: Message = {
+        id: uuid(),
+        sessionId: store.activeSessionId,
+        role: 'assistant',
+        content: aiText,
+        status: 'done',
+        createdAt: now,
+      }
+      store.messages.push(aiMsg)
+      persistMessage(aiMsg)
+    }
+
+    // 更新会话标题
+    const session = store.sessions.find(s => s.id === store.activeSessionId)
+    if (session?.title === '新对话' && (userText || aiText)) {
+      session.title = (userText || aiText).slice(0, 20)
+    }
+
+    // 确保后端会话存在
+    if (session && !session.backendId) {
+      try {
+        const res = await addChat({ chatTitle: (userText || aiText || '待办消息').slice(0, 50) })
+        const pkId = (res as any).data
+        if (pkId) session.backendId = pkId
+      } catch { /* ignore */ }
+    }
+
+    const chatId = session?.backendId ?? null
+    if (!chatId) return
+
+    // 保存记录到后端（不发 IM，<promptQuick> 内容已被去除）
+    if (userText) {
+      addChatRecordData({ fkChatId: chatId, chatContent: userText, chatObject: '0' }).catch(() => {})
+    }
+    if (aiText) {
+      addChatRecordData({ fkChatId: chatId, chatContent: aiText, chatObject: '1' }).catch(() => {})
+    }
+  }
+
+  return { send, newSession, loadSession, deleteSession, loadSessions, resetState, stopReply, sendBacklogItem, autoSendPrivateItems }
 }

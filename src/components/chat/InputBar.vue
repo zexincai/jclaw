@@ -62,7 +62,12 @@
             <button @click="isRecording = true" class="p-1.5 text-gray-400 hover:text-blue-500 transition-colors" title="语音输入">
               <Mic :size="18" />
             </button>
-            <button @click="submit" :disabled="!selectedAction && !text.trim() && files.length === 0"
+            <button v-if="store.aiReplying" @click="chat.stopReply()"
+              class="p-2 text-white transition-all bg-red-500 rounded-full shadow-md hover:bg-red-600 active:scale-95"
+              title="停止回复">
+              <StopCircle :size="16" />
+            </button>
+            <button v-else @click="submit" :disabled="!selectedAction && !text.trim() && files.length === 0"
               class="p-2 text-white transition-all bg-blue-500 rounded-full shadow-md disabled:opacity-30 hover:bg-blue-600 active:scale-95">
               <Send :size="16" />
             </button>
@@ -89,7 +94,8 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { Image, Paperclip, Mic, Send, Upload } from 'lucide-vue-next'
+import { Image, Paperclip, Mic, Send, Upload, StopCircle } from 'lucide-vue-next'
+import { useChatStore } from '../../stores/chat'
 import type { Attachment } from '../../stores/chat'
 import { useChat } from '../../composables/useChat'
 import QuickActions from '../ui/QuickActions.vue'
@@ -103,6 +109,7 @@ defineProps<{
 }>()
 
 const chat = useChat()
+const store = useChatStore()
 const text = ref('')
 const selectedAction = ref<{ title: string; words: string } | null>(null)
 watch(selectedAction, (action) => {

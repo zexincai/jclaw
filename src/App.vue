@@ -236,7 +236,7 @@ async function initAndConnect() {
     }
   }
 
-  backlog.fetchBacklog()
+  backlog.fetchTypeTotals().then(() => {})
   connectWS()
 }
 

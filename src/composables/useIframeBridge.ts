@@ -124,6 +124,7 @@ function relayUserMessage(message: string) {
 }
 
 function dispatchAction(payload: unknown) {
+  console.log('Dispatching action to iframe with payload:', payload)
   attachListener()
   isVisible.value = true
   iframeRef.value?.contentWindow?.postMessage(
