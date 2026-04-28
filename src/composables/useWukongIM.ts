@@ -7,7 +7,7 @@ import { WKSDK, MessageText, MessageContent, MessageContentManager, Channel, Cha
 import { getChatIMLongConnection } from '../api/agent'
 
 // ── 自定义消息类型 ───────────────────────────────
-const JCLAW_CONTENT_TYPE = 101
+const JCLAW_CONTENT_TYPE = 1007
 
 class JClawMessageContent extends MessageContent {
   text: string = ''
@@ -67,7 +67,7 @@ export function useWukongIM() {
           callback(wsAddr)
         }
       } else {
-        WKSDK.shared().config.addr = 'ws://100.112.82.63:5200' || wsAddr
+        WKSDK.shared().config.addr = wsAddr
       }
       currentTelephone = telephone
       WKSDK.shared().config.uid = userId
@@ -103,15 +103,15 @@ export function useWukongIM() {
   function sendText(text: string) {
     const msg = new MessageText(text)
     const channel = new Channel(currentTelephone, ChannelTypePerson)
-    WKSDK.shared().chatManager.send(msg, channel)
+    return WKSDK.shared().chatManager.send(msg, channel)
   }
 
   function sendCustom(text: string, requestId: string) {
     const msg = new JClawMessageContent()
     msg.text = text
-    msg.key = requestId
+    msg.requestId = requestId
     const channel = new Channel(currentTelephone, ChannelTypePerson)
-    WKSDK.shared().chatManager.send(msg, channel)
+    return WKSDK.shared().chatManager.send(msg, channel)
   }
 
   /**
