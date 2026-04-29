@@ -428,6 +428,8 @@ export interface BacklogItemVo {
   projectBidId?: number
   /** 标段项目名称（注意：需要续期才有返回） */
   projectBidName?: string
+  /** 待办操作按钮名称 */
+  quickButtonName?: string
   /** 小龙虾词语 */
   quickLobsterWords?: string
   /** 用户词语 */
@@ -451,6 +453,10 @@ export interface BacklogItemVo {
  * @summary 查询待办任务
  * @param params 查询参数
  */
-export function searchBacklogPageList(params?: any) {
+export function searchBacklogPageList(params?: {
+  pageNum: number,
+  pageSize?: number,
+  messageType?: number // 消息类型（0：待办消息，1：确认消息，2：提醒消息）
+}) {
   return http.get<AjaxResult<PageInfo<BacklogItemVo>>>('/eng/agentUser/searchBacklogPageList', params)
 }

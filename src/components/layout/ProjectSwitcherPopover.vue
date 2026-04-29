@@ -23,7 +23,10 @@
       <!-- 双行文字 -->
       <div class="flex-1 min-w-0">
         <div class="text-xs font-medium text-gray-700 truncate leading-tight">{{ activeProject?.name || '选择账号' }}</div>
-        <div class="text-xs text-gray-400 truncate leading-tight">{{ roleName }}</div>
+        <div class="flex items-center gap-1 leading-tight">
+          <span class="text-xs text-gray-400 truncate">{{ roleName }}</span>
+          <span v-if="activeProject?.isMaster === 1" class="shrink-0 text-[9px] font-semibold px-1 py-px rounded bg-amber-100 text-amber-700">管理员</span>
+        </div>
       </div>
       <ChevronsUpDown :size="13" class="text-gray-400 shrink-0" />
     </button>
@@ -80,7 +83,10 @@
               <img v-else-if="project.avatar" :src="project.avatar" class="w-full h-full object-cover" />
               <span v-else>{{ initial(project.name) }}</span>
             </div>
-            <span class="flex-1 text-sm text-gray-700 truncate">{{ project.name }}</span>
+            <div class="flex items-center gap-1.5 flex-1 min-w-0">
+              <span class="text-sm text-gray-700 truncate">{{ project.name }}</span>
+              <span v-if="project.isMaster === 1" class="shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">管理员</span>
+            </div>
             <Check v-if="store.activeProjectId === project.id" :size="15" class="text-red-500 shrink-0" />
           </div>
         </div>

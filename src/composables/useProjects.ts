@@ -39,6 +39,7 @@ export function useProjects() {
         name: r.orgName,
         avatar: r.avatar,
         orgType: r.orgType,
+        isMaster: r.isMaster,
         // 如果 API 不再提供 channelId，使用基于 userId 的默认值
         channelId: `agent:${r.userId}:main`,
       }))

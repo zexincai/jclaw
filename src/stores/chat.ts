@@ -7,6 +7,7 @@ export interface Project {
   channelId: string;
   avatar?: string;
   orgType?: number;
+  isMaster?: number;
 }
 
 export interface Session {

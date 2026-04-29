@@ -1,46 +1,136 @@
 import { ref } from 'vue'
 import { type BacklogItemVo, searchBacklogPageList } from '../api/agent'
 
-// TODO: 接口恢复后删除此 mock，恢复 searchBacklogPageList 调用
-// const MOCK_BACKLOG: BacklogItemVo[] = [
-//   { pkId: 1, title: '施工验收流程审批', businessTypeName: '施工验收', matterType: 1, handleStatus: 0, createTime: '2026-04-25 10:00:00', fkUserName: '张三', projectBidName: '示例标段A', roleName: '项目经理' },
-//   { pkId: 2, title: '业主计量流程待办', businessTypeName: '业主计量', matterType: 2, handleStatus: 0, createTime: '2026-04-26 09:30:00', fkUserName: '李四', projectBidName: '示例标段B', roleName: '项目经理' },
-//   { pkId: 3, title: '变更设计流程审批', businessTypeName: '设计变更', matterType: 4, handleStatus: 0, createTime: '2026-04-27 08:00:00', fkUserName: '王五', projectBidName: '示例标段A', roleName: '技术负责人' },
-//   { pkId: 4, title: '分包合同审批流程', businessTypeName: '分包合同', matterType: 29, handleStatus: 0, createTime: '2026-04-27 11:00:00', fkUserName: '赵六', projectBidName: '示例标段C', roleName: '合同管理员' },
-//   { pkId: 5, title: '供货合同审批流程', businessTypeName: '供货合同', matterType: 30, handleStatus: 0, createTime: '2026-04-24 15:00:00', fkUserName: '钱七', projectBidName: '示例标段B', roleName: '合同管理员' },
-//   { pkId: 6, title: '月度进度审批流程', businessTypeName: '月度进度', matterType: 28, handleStatus: 0, createTime: '2026-04-27 14:00:00', fkUserName: '孙八', projectBidName: '示例标段A', roleName: '技术负责人' },
-// ]
-
 // 模块级单例
+const typeTotals = ref<Record<number, number>>({ 0: 0, 1: 0, 2: 0 })
+/** 按 messageType 缓存的列表 */
+const typeItemsMap = ref<Record<number, BacklogItemVo[]>>({ 0: [], 1: [], 2: [] })
+const typeItemsLoadingSet = ref<Set<number>>(new Set())
+const totalsLoading = ref(false)
+/** 已自动发送给 IM 的私下待办 pkId 集合（防重复发送） */
+const sentPrivateIds = new Set<number>()
+
+// 兼容旧字段
 const backlogItems = ref<BacklogItemVo[]>([])
 const backlogTotal = ref(0)
 const backlogLoading = ref(false)
 
 export function useBacklog() {
-  async function fetchBacklog() {
-    if (backlogLoading.value) return
-    backlogLoading.value = true
+  /** 从响应体中提取列表，兼容直接数组和 PageInfo 两种格式 */
+  function extractList(res: any): BacklogItemVo[] {
+    const data = res?.data ?? res
+    if (Array.isArray(data)) return data
+    return data?.records ?? data?.list ?? []
+  }
+
+  /** 并发拉取三种类型的数量角标（顺带缓存列表） */
+  async function fetchTypeTotals() {
+    if (totalsLoading.value) return
+    totalsLoading.value = true
     try {
-      // TODO: 接口恢复后替换为：
-      const res = await searchBacklogPageList() as any
-      const data = res?.data ?? res
-      const list: BacklogItemVo[] = data?.list ?? data?.records ?? []
-      // await new Promise(resolve => setTimeout(resolve, 300)) // 模拟网络延迟
-      // const list = MOCK_BACKLOG
-      backlogItems.value = list.filter(item => item.handleStatus === 0)
-      backlogTotal.value = list.length
+      const results = await Promise.allSettled([
+        searchBacklogPageList({ pageNum: 1, pageSize: 200, messageType: 0 }),
+        searchBacklogPageList({ pageNum: 1, pageSize: 200, messageType: 1 }),
+        searchBacklogPageList({ pageNum: 1, pageSize: 200, messageType: 2 }),
+      ])
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled') {
+          const list = extractList(r.value)
+          typeItemsMap.value = { ...typeItemsMap.value, [i]: list }
+          typeTotals.value[i] = list.filter(item => item.mechanismType !== 1).length
+        }
+      })
     } catch {
-      // 静默失败，不影响主流程
+      // 静默失败
     } finally {
-      backlogLoading.value = false
+      totalsLoading.value = false
     }
   }
 
+  /** 拉取指定类型的待办列表（有缓存则跳过）*/
+  async function fetchTypeItems(messageType: number, force = false) {
+    if (!force && typeItemsMap.value[messageType]?.length) return
+    if (typeItemsLoadingSet.value.has(messageType)) return
+    typeItemsLoadingSet.value = new Set([...typeItemsLoadingSet.value, messageType])
+    try {
+      const res = await searchBacklogPageList({ pageNum: 1, pageSize: 9999, messageType }) as any
+      const list = extractList(res)
+      typeItemsMap.value = { ...typeItemsMap.value, [messageType]: list }
+      typeTotals.value[messageType] = list.filter(item => item.mechanismType !== 1).length
+    } catch {
+      typeItemsMap.value = { ...typeItemsMap.value, [messageType]: [] }
+    } finally {
+      const next = new Set(typeItemsLoadingSet.value)
+      next.delete(messageType)
+      typeItemsLoadingSet.value = next
+    }
+  }
+
+  /** 拉取全部三种类型 */
+  async function fetchAllTypeItems() {
+    await Promise.all([
+      fetchTypeItems(0),
+      fetchTypeItems(1),
+      fetchTypeItems(2),
+    ])
+  }
+
+  // 保留旧 fetchBacklog
+  async function fetchBacklog() {
+    await fetchTypeTotals()
+    backlogTotal.value = Object.values(typeTotals.value).reduce((a, b) => a + b, 0)
+  }
+
+  /** 返回当前缓存中属于指定用户的、尚未自动发送的 mechanismType===1 待办项 */
+  function getUnsentPrivateItems(userIds: string[]): BacklogItemVo[] {
+    const all = [
+      ...(typeItemsMap.value[0] ?? []),
+      ...(typeItemsMap.value[1] ?? []),
+      ...(typeItemsMap.value[2] ?? []),
+    ]
+    return all.filter(
+      item =>
+        item.mechanismType === 1 &&
+        item.pkId != null &&
+        !sentPrivateIds.has(item.pkId) &&
+        userIds.includes(String(item.fkUserId)),
+    )
+  }
+
+  function markPrivateItemsSent(ids: number[]) {
+    ids.forEach(id => sentPrivateIds.add(id))
+  }
+
   function reset() {
+    typeTotals.value = { 0: 0, 1: 0, 2: 0 }
+    typeItemsMap.value = { 0: [], 1: [], 2: [] }
+    typeItemsLoadingSet.value = new Set()
+    totalsLoading.value = false
     backlogItems.value = []
     backlogTotal.value = 0
     backlogLoading.value = false
+    sentPrivateIds.clear()
   }
 
-  return { backlogItems, backlogTotal, backlogLoading, fetchBacklog, reset }
+  function getTotalCount() {
+    return Object.values(typeTotals.value).reduce((a, b) => a + b, 0)
+  }
+
+  return {
+    typeTotals,
+    typeItemsMap,
+    typeItemsLoadingSet,
+    getTotalCount,
+    fetchTypeTotals,
+    fetchTypeItems,
+    fetchAllTypeItems,
+    getUnsentPrivateItems,
+    markPrivateItemsSent,
+    // 旧接口保留
+    backlogItems,
+    backlogTotal,
+    backlogLoading,
+    fetchBacklog,
+    reset,
+  }
 }

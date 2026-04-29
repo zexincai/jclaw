@@ -3,25 +3,22 @@
  * 连接地址通过 /eng/chat/getChatIMLongConnection 获取
  */
 import { ref } from 'vue'
-import {
-  WKSDK,
-  MessageText,
-  MessageContent,
-  MessageContentManager,
-  Channel,
-  ChannelTypePerson,
-} from 'wukongimjssdk'
+import { WKSDK, MessageText, MessageContent, MessageContentManager, Channel, ChannelTypePerson } from 'wukongimjssdk'
 import { getChatIMLongConnection } from '../api/agent'
 
 // ── 自定义消息类型 ───────────────────────────────
-const JCLAW_CONTENT_TYPE = 101
+const JCLAW_CONTENT_TYPE = 1007
 
 class JClawMessageContent extends MessageContent {
   text: string = ''
   requestId: string = ''
 
-  get contentType(): number { return JCLAW_CONTENT_TYPE }
-  get conversationDigest(): string { return this.text }
+  get contentType(): number {
+    return JCLAW_CONTENT_TYPE
+  }
+  get conversationDigest(): string {
+    return this.text
+  }
 
   encodeJSON(): any {
     return { content: this.text, requestId: this.requestId }
@@ -41,7 +38,7 @@ const SOURCE_TYPE = 3
 
 // ── 模块级单例状态 ──────────────────────────────
 const status = ref<'connecting' | 'connected' | 'disconnected'>('disconnected')
-let linkStatus = 0  // WKSDK 原始连接状态，1 = 已连接
+let linkStatus = 0 // WKSDK 原始连接状态，1 = 已连接
 let currentTelephone = ''
 type IncomingMsgHandler = (message: unknown) => void
 const messageHandlers = new Set<IncomingMsgHandler>()
@@ -55,7 +52,7 @@ function _connectStatusListener(s: number, _reasonCode: number) {
 function _messageListener(message: unknown) {
   console.log('[WukongIM] 收到原始消息', message)
 
-  messageHandlers.forEach(h => h(message))
+  messageHandlers.forEach((h) => h(message))
 }
 
 export function useWukongIM() {
@@ -78,6 +75,14 @@ export function useWukongIM() {
 
       WKSDK.shared().connectManager.addConnectStatusListener(_connectStatusListener)
       WKSDK.shared().chatManager.addMessageListener(_messageListener)
+      WKSDK.shared().chatManager.addMessageStatusListener((packet: any) => {
+        console.log('消息clientSeq->', packet) // 消息客户端序号用来匹配对应的发送的消息
+        if (packet.reasonCode === 1) {
+          // 发送成功
+        } else {
+          // 发送失败
+        }
+      })
       WKSDK.shared().connectManager.connect()
     } catch (err) {
       status.value = 'disconnected'
@@ -98,7 +103,7 @@ export function useWukongIM() {
   function sendText(text: string) {
     const msg = new MessageText(text)
     const channel = new Channel(currentTelephone, ChannelTypePerson)
-    WKSDK.shared().chatManager.send(msg, channel)
+    return WKSDK.shared().chatManager.send(msg, channel)
   }
 
   function sendCustom(text: string, requestId: string) {
@@ -106,7 +111,7 @@ export function useWukongIM() {
     msg.text = text
     msg.requestId = requestId
     const channel = new Channel(currentTelephone, ChannelTypePerson)
-    WKSDK.shared().chatManager.send(msg, channel)
+    return WKSDK.shared().chatManager.send(msg, channel)
   }
 
   /**
