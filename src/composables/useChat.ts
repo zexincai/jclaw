@@ -23,8 +23,10 @@ let pendingSessionId: string | null = null
 let currentChatId: number | null = null
 type SendMode = 'full' | 'im_only' | 'im' | 'session_only'
 interface PendingReply { streamingId: string | null; mode: SendMode; iframeRelay: boolean; chatId: number | null }
-// key = requestId（嵌入 <system> 块，AI 回复时携带，实现一一对应）
-const replyMap = new Map<string, PendingReply>()
+// replyMessageSeq 关联：clientSeq → PendingReply → messageSeq → PendingReply
+const clientSeqToReply = new Map<number, PendingReply>()
+const messageSeqToReply = new Map<number, PendingReply>()
+const REPLY_SEQ_RE = /^\[replyMessageSeq=(\d+)\]/
 let _store: ReturnType<typeof useChatStore> | null = null
 
 interface IframeNavigateAction {
@@ -70,13 +72,6 @@ function stripSystemBlock(content: string): string {
   return content.replace(/<system>[\s\S]*?<\/system>\n*/gi, '').trim()
 }
 
-/** 从 AI 回复原文的 <system> 块中提取 request-id */
-function extractRequestId(rawText: string): string | undefined {
-  const match = rawText.match(/<system>([\s\S]*?)<\/system>/i)
-  if (!match) return undefined
-  const line = match[1].split('\n').find(l => l.trim().startsWith('request-id:'))
-  return line ? line.replace('request-id:', '').trim() : undefined
-}
 
 function stripThinkingTags(text: string): string {
   return text
@@ -175,23 +170,11 @@ function persistMessage(msg: Message) {
 }
 
 /** 处理收到的 AI 响应消息 */
-function handleIncomingAIMessage(store: ReturnType<typeof useChatStore>, bridge: ReturnType<typeof useIframeBridge>, rawText: string, incomingRequestId?: string) {
+function handleIncomingAIMessage(store: ReturnType<typeof useChatStore>, bridge: ReturnType<typeof useIframeBridge>, rawText: string, resolvedPending?: PendingReply) {
   const thinking = extractThinking(rawText)
   const text = stripThinkingTags(rawText)
 
-  // 按 request-id 查找对应发送元数据：优先用消息 payload 中的 requestId，降级解析文本 <system> 块
-  const requestId = incomingRequestId || extractRequestId(rawText)
-  let pending: PendingReply | undefined
-  if (requestId && replyMap.has(requestId)) {
-    pending = replyMap.get(requestId)
-    replyMap.delete(requestId)
-  } else {
-    const firstKey = replyMap.keys().next().value
-    if (firstKey !== undefined) {
-      pending = replyMap.get(firstKey)
-      replyMap.delete(firstKey)
-    }
-  }
+  const pending = resolvedPending
   const msgMode = pending?.mode ?? 'full'
   const shouldRelayToIframe = pending?.iframeRelay ?? false
   const pendingStreamId = pending?.streamingId ?? null
@@ -312,17 +295,17 @@ export function useChat() {
         const bridge = useIframeBridge()
         bridge.dispatchAction((payload.params as Record<string, unknown>) ?? payload)
       }
-      const reqId = uuid()
       const sysLines = [
         role?.userRolePrompt || '',
         ` operate-port: 2 ${actionFormatHint}`,
-        `request-id: ${reqId}`,
         auth.token.value ? `用户令牌：${auth.token.value}` : '',
       ].filter(Boolean).join('\n')
       const sysBlock = sysLines ? `<system>\n${sysLines}\n</system>\n\n` : ''
-      // 注册 im_only，AI 回复不显示在 UI 也不保存后端
-      replyMap.set(reqId, { streamingId: null, mode: 'im_only', iframeRelay: false, chatId: null })
-      wkIM.sendText(sysBlock + clean)
+      // im_only：AI 回复不显示在 UI 也不保存后端，通过 replyMessageSeq 关联
+      const imOnlyPending: PendingReply = { streamingId: null, mode: 'im_only', iframeRelay: false, chatId: null }
+      wkIM.sendText(sysBlock + clean).then((e: any) => {
+        if (e?.clientSeq) clientSeqToReply.set(e.clientSeq, imOnlyPending)
+      })
     }
 
     markPrivateItemsSent(items.filter(i => i.pkId != null).map(i => i.pkId!))
@@ -333,25 +316,46 @@ export function useChat() {
     initialized = true
     const bridge = useIframeBridge()
 
+    // 监听发送状态：clientSeq → messageSeq，建立 replyMessageSeq 映射
+    wkIM.onMessageStatus(({ clientSeq, messageSeq, reasonCode }) => {
+      const reply = clientSeqToReply.get(clientSeq)
+      clientSeqToReply.delete(clientSeq)
+      if (reasonCode === 1 && reply) {
+        messageSeqToReply.set(messageSeq, reply)
+        console.log('[Chat] 发送成功，messageSeq:', messageSeq, '→ streamingId:', reply.streamingId)
+      }
+    })
+
     // 监听来自悟空IM的消息
     wkIM.onMessage((rawMsg: unknown) => {
       console.log('rawMsg', rawMsg)
-      const msg = rawMsg as { fromUID?: string; contentType?: number; content?: unknown | any }
+      const msg = rawMsg as { fromUID?: string; contentType?: number; content?: any }
       const currentUser = auth.currentRole.value
       if (!currentUser) return
       if (msg.fromUID === `${currentUser.userId}`) return
       if (msg.contentType !== 1 && msg.contentType !== 103 && msg.contentType !== 101) return
-      if (msg.content && msg.content?.contentType == 1006) {
+      if (msg.content?.contentType == 1006) {
         useBacklog().fetchTypeTotals().then(() => autoSendPrivateItems())
         return
       }
-      const text = extractText(rawMsg)
+
+      // 解析 [replyMessageSeq=xxx] 前缀，找到对应 pending
+      const rawText: string = msg.content?.content ?? msg.content?.text ?? ''
+      const seqMatch = rawText.match(REPLY_SEQ_RE)
+      let pending: PendingReply | undefined
+      if (seqMatch) {
+        const replySeq = parseInt(seqMatch[1], 10)
+        pending = messageSeqToReply.get(replySeq)
+        if (pending) messageSeqToReply.delete(replySeq)
+        console.log('[Chat] AI 回复 replyMessageSeq:', replySeq, '命中:', !!pending)
+      }
+
+      const text = extractText(rawMsg) // 已剥离 [replyMessageSeq=xxx] 前缀
       if (!text) return
-      // 从自定义消息 payload 提取 requestId（优先），降级由 handleIncomingAIMessage 解析文本
-      const payloadRequestId = (msg.content as any)?.requestId as string | undefined
-      // msg.fromUID == 用户手机号码
+
+      // msg.fromUID == 用户手机号码（AI 账号）
       if (msg.fromUID === `${currentUser.telephone}`) {
-        handleIncomingAIMessage(store, bridge, text, payloadRequestId)
+        handleIncomingAIMessage(store, bridge, text, pending)
       }
     })
   }
@@ -437,25 +441,20 @@ export function useChat() {
     const role = auth.currentRole.value
     // 360浏览器安全过滤会剥离 <pcAction> 标签，改用方括号格式
     const actionFormatHint = is360Browser() ? ' action-tag-format: bracket ' : ''
-    // 生成 requestId 嵌入 <system>，AI 回复时携带，用于精确匹配回复元数据
-    const requestId = uuid()
     const sysLines = [
       role?.userRolePrompt || '',
       ` operate-port: 2 ${actionFormatHint}`,
       fromIframe ? 'source: iframe' : '',
-      `request-id: ${requestId}`,
       auth.token.value ? `用户令牌：${auth.token.value}` : '',
     ].filter(Boolean).join('\n')
     const sysBlock = sysLines ? `<system>\n${sysLines}\n</system>\n\n` : ''
 
-    // 记录本次发送的元数据（session_only 不等 AI 回复，无需记录）
-    if (mode !== 'session_only') {
-      replyMap.set(requestId, {
-        streamingId: mode !== 'im_only' ? streamingId : null,
-        mode,
-        iframeRelay: fromIframe,
-        chatId: currentChatId,
-      })
+    // 发送前快照当前 pending 数据，sendText 回调时注册 clientSeq → PendingReply
+    const pendingReply: PendingReply = {
+      streamingId: mode !== 'im_only' ? streamingId : null,
+      mode,
+      iframeRelay: fromIframe,
+      chatId: currentChatId,
     }
 
     // 保存用户消息到后端（full / session_only 才保存）
@@ -507,9 +506,12 @@ export function useChat() {
         if (mediaMarkdown) textToSend = mediaMarkdown + (text ? '\n' + text : '')
       }
 
-      // 通过悟空IM发送消息到 AI 频道（自定义消息类型，payload 携带 requestId）
+      // 通过悟空IM发送消息，状态回调后通过 replyMessageSeq 与 AI 回复关联
       wkIM.sendText(sysBlock + textToSend).then((e: any) => {
-        console.log(e.clientSeq)
+        if (e?.clientSeq) {
+          clientSeqToReply.set(e.clientSeq, pendingReply)
+          console.log('[Chat] 发送，clientSeq:', e.clientSeq)
+        }
       })
       userMsg.status = 'done'
       persistMessage(userMsg)
@@ -634,7 +636,8 @@ export function useChat() {
       streamingId = null
     }
     pendingSessionId = null
-    replyMap.clear()
+    clientSeqToReply.clear()
+    messageSeqToReply.clear()
     store.aiReplying = false
   }
 
@@ -642,7 +645,8 @@ export function useChat() {
     streamingId = null
     pendingSessionId = null
     currentChatId = null
-    replyMap.clear()
+    clientSeqToReply.clear()
+    messageSeqToReply.clear()
   }
 
   /**
