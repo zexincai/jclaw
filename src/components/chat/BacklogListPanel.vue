@@ -21,31 +21,11 @@
       </button>
     </div>
 
-    <!-- ── 标签页 ── -->
-    <div class="flex items-center gap-1 px-3 pt-2 pb-0 border-b border-gray-100 shrink-0">
-      <button
-        v-for="tab in TABS"
-        :key="tab.type"
-        @click="selectTab(tab.type)"
-        class="relative whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-t-md transition-colors"
-        :class="activeTab === tab.type
-          ? 'bg-white text-blue-600 border border-b-white border-gray-200 -mb-px z-10'
-          : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'"
-      >
-        {{ tab.label }}
-        <span
-          v-if="tabCount(tab.type) > 0"
-          class="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 rounded-full text-[9px] font-bold flex items-center justify-center leading-none border border-white"
-          :class="activeTab === tab.type ? 'bg-blue-500 text-white' : 'bg-red-500 text-white'"
-        >{{ tabCount(tab.type) }}</span>
-      </button>
-    </div>
-
-    <!-- ── 主体：左侧角色 + 右侧列表 ── -->
+    <!-- ── 主体：左侧角色 + 右侧（标签页 + 列表） ── -->
     <div class="flex flex-1 min-h-0">
 
       <!-- 左侧角色列表 -->
-      <div class="py-1 overflow-y-auto border-r border-gray-100 w-14 shrink-0 bg-gray-50">
+      <div class="py-1 overflow-y-auto border-r border-gray-100 w-16 shrink-0 bg-gray-50">
         <button
           v-for="role in rolesWithCount"
           :key="role.userId"
@@ -62,7 +42,7 @@
           <div class="relative">
             <div
               :class="[
-                'w-8 h-8 rounded-[10px] flex items-center justify-center text-xs font-bold text-white overflow-hidden shrink-0 border border-gray-100',
+                'w-10 h-10 rounded-[10px] flex items-center justify-center text-sm font-bold text-white overflow-hidden shrink-0 border border-gray-100',
                 !getAvatarByOrgType(role.orgType) && !role.avatar
                   ? BG_COLORS[rolesWithCount.indexOf(role) % BG_COLORS.length]
                   : 'bg-white',
@@ -80,8 +60,30 @@
         </button>
       </div>
 
-      <!-- 右侧列表 -->
-      <div class="flex-1 overflow-y-auto">
+      <!-- 右侧：标签页 + 列表 -->
+      <div class="flex flex-col flex-1 min-h-0">
+        <!-- 标签页 -->
+        <div class="flex items-center gap-1 px-3 pt-2 pb-0 border-b border-gray-100 shrink-0">
+          <button
+            v-for="tab in TABS"
+            :key="tab.type"
+            @click="selectTab(tab.type)"
+            class="relative whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-t-md transition-colors"
+            :class="activeTab === tab.type
+              ? 'bg-white text-blue-600 border border-b-white border-gray-200 -mb-px z-10'
+              : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'"
+          >
+            {{ tab.label }}
+            <span
+              v-if="tabCount(tab.type) > 0"
+              class="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 rounded-full text-[9px] font-bold flex items-center justify-center leading-none border border-white"
+              :class="activeTab === tab.type ? 'bg-blue-500 text-white' : 'bg-red-500 text-white'"
+            >{{ tabCount(tab.type) }}</span>
+          </button>
+        </div>
+
+        <!-- 列表 -->
+        <div class="flex-1 overflow-y-auto">
         <!-- 加载中 -->
         <div v-if="isLoading" class="flex flex-col items-center justify-center h-32 gap-2 text-gray-400">
           <Loader2 :size="18" class="animate-spin" />
@@ -123,9 +125,36 @@
             暂无{{ activeTabLabel }}
           </div>
         </template>
+        </div>
       </div>
     </div>
   </div>
+
+    <!-- ── 切换账号确认弹窗 ── -->
+    <Teleport to="body">
+      <div v-if="confirmVisible" class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/30" @click.self="cancelSwitch">
+        <div class="bg-white rounded-xl shadow-2xl w-80 p-5 flex flex-col gap-4">
+          <p class="text-sm font-semibold text-gray-800">提醒</p>
+          <p class="text-sm text-gray-600">
+            确定切换到该账号下处理此待办事项？？
+          </p>
+          <div class="flex justify-end gap-2">
+            <button
+              @click="cancelSwitch"
+              class="px-4 py-1.5 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+            >取消</button>
+            <button
+              @click="confirmSwitch"
+              :disabled="switchLoading"
+              class="px-4 py-1.5 text-xs rounded bg-blue-500 text-white hover:bg-blue-600 transition-colors disabled:opacity-60 flex items-center gap-1"
+            >
+              <Loader2 v-if="switchLoading" :size="12" class="animate-spin" />
+              确认
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -135,15 +164,19 @@ import { X, Loader2 } from 'lucide-vue-next'
 import { useBacklog } from '../../composables/useBacklog'
 import { useAuth } from '../../composables/useAuth'
 import { useChat } from '../../composables/useChat'
+import { useChatStore } from '../../stores/chat'
+import { useProjects } from '../../composables/useProjects'
 import { getAvatarByOrgType } from '../../utils/avatar'
 import type { BacklogItemVo } from '../../api/agent'
 
 const props = defineProps<{ messageType: number }>()
 const emit = defineEmits<{ close: [] }>()
 
-const { typeTotals, typeItemsMap, typeItemsLoadingSet, fetchTypeItems, fetchAllTypeItems } = useBacklog()
-const { roles } = useAuth()
+const { typeItemsMap, typeItemsLoadingSet, fetchTypeItems, fetchAllTypeItems } = useBacklog()
+const { roles, currentRole, switchRole } = useAuth()
 const chat = useChat()
+const store = useChatStore()
+const { setActive } = useProjects()
 
 // ── 标签页配置 ────────────────────────────────────────
 const ALL_TAB = -1
@@ -158,8 +191,16 @@ const activeTab = ref(props.messageType)
 const selectedUserId = ref<string>('')
 
 function tabCount(type: number) {
-  if (type === ALL_TAB) return Object.values(typeTotals.value).reduce((a, b) => a + b, 0)
-  return typeTotals.value[type] ?? 0
+  const filterPrivate = (arr: BacklogItemVo[]) => arr.filter(item => item.mechanismType !== 1)
+  const filterByRole = (arr: BacklogItemVo[]) =>
+    selectedUserId.value
+      ? arr.filter(item => String(item.fkUserId) === String(selectedUserId.value))
+      : arr
+  if (type === ALL_TAB) {
+    return [0, 1, 2].reduce((sum, t) =>
+      sum + filterByRole(filterPrivate(typeItemsMap.value[t] ?? [])).length, 0)
+  }
+  return filterByRole(filterPrivate(typeItemsMap.value[type] ?? [])).length
 }
 
 const activeTabLabel = computed(() => TABS.find(t => t.type === activeTab.value)?.label ?? '')
@@ -186,17 +227,23 @@ const isLoading = computed(() => {
   return typeItemsLoadingSet.value.has(activeTab.value)
 })
 
-// ── 左侧角色列表（登录接口角色 + 当前 tab 数量） ──────
-const rolesWithCount = computed(() =>
-  roles.value.map(role => ({
-    ...role,
-    count: currentItems.value.filter(
-      item => String(item.fkUserId) === String(role.userId)
-    ).length,
-  })).filter(r => r.count > 0)
-)
+// ── 左侧角色列表（全部角色 + 全类型数量汇总） ──────
+const rolesWithCount = computed(() => {
+  const filterPrivate = (arr: BacklogItemVo[]) => arr.filter(item => item.mechanismType !== 1)
+  const allItems = [
+    ...filterPrivate(typeItemsMap.value[0] ?? []),
+    ...filterPrivate(typeItemsMap.value[1] ?? []),
+    ...filterPrivate(typeItemsMap.value[2] ?? []),
+  ]
+  return roles.value
+    .map(role => ({
+      ...role,
+      count: allItems.filter(item => String(item.fkUserId) === String(role.userId)).length,
+    }))
+    .sort((a, b) => b.count - a.count)
+})
 
-// 默认选中第一个有数据的角色
+// 默认选中第一个角色
 watch(rolesWithCount, (list) => {
   if (list.length && !list.find(r => r.userId === selectedUserId.value)) {
     selectedUserId.value = list[0].userId
@@ -213,7 +260,6 @@ const visibleItems = computed(() =>
 // ── 切换 tab ──────────────────────────────────────────
 function selectTab(type: number) {
   activeTab.value = type
-  selectedUserId.value = ''
   if (type === ALL_TAB) {
     fetchAllTypeItems()
   } else {
@@ -267,8 +313,51 @@ function actionLabel(item: BacklogItemVo) {
   return item.quickButtonName || (item.matterStatus === 1 ? '确认' : '处理')
 }
 
+// ── 切换账号确认弹窗 ──────────────────────────────────
+const confirmVisible = ref(false)
+const switchLoading = ref(false)
+const pendingItem = ref<BacklogItemVo | null>(null)
+
 async function handleAction(item: BacklogItemVo) {
+  const itemUserId = String(item.fkUserId ?? '')
+  const curUserId  = String(currentRole.value?.userId ?? '')
+  if (itemUserId && itemUserId !== curUserId) {
+    pendingItem.value = item
+    confirmVisible.value = true
+    return
+  }
+  await doSend(item)
+}
+
+async function doSend(item: BacklogItemVo) {
   await chat.sendBacklogItem(item)
   emit('close')
+}
+
+async function confirmSwitch() {
+  const item = pendingItem.value
+  if (!item) return
+  switchLoading.value = true
+  try {
+    store.switchingRole = true
+    store.messages = []
+    store.sessions = []
+    store.activeSessionId = ''
+    setActive(String(item.fkUserId!))
+    await switchRole(String(item.fkUserId!))
+    await chat.loadSessions()
+    if (!store.activeSessionId) chat.newSession()
+    confirmVisible.value = false
+    pendingItem.value = null
+    await doSend(item)
+  } finally {
+    store.switchingRole = false
+    switchLoading.value = false
+  }
+}
+
+function cancelSwitch() {
+  confirmVisible.value = false
+  pendingItem.value = null
 }
 </script>
