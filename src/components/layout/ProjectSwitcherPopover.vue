@@ -1,10 +1,10 @@
 <template>
   <!-- 合并底部栏：项目头像触发 + 用户名 + 设置 -->
-  <div class="flex items-center gap-2 min-w-0">
+  <div class="flex items-center min-w-0 gap-2">
     <!-- 左侧可点击区域：项目头像 + 双行文字 + 展开图标 -->
     <button
       @click="open = true"
-      class="flex items-center gap-2 flex-1 min-w-0 px-1 py-1 rounded-lg hover:bg-gray-50 transition-colors text-left"
+      class="flex items-center flex-1 min-w-0 gap-2 px-1 py-1 text-left transition-colors rounded-lg hover:bg-gray-50"
       :title="activeProject?.name"
     >
       <!-- 项目头像 -->
@@ -16,13 +16,13 @@
             : 'bg-white',
         ]"
       >
-        <img v-if="getAvatarByOrgType(activeProject?.orgType)" :src="getAvatarByOrgType(activeProject?.orgType)!" class="w-full h-full object-cover" />
-        <img v-else-if="activeProject?.avatar" :src="activeProject.avatar" class="w-full h-full object-cover" />
+        <img v-if="getAvatarByOrgType(activeProject?.orgType)" :src="getAvatarByOrgType(activeProject?.orgType)!" class="object-cover w-full h-full" />
+        <img v-else-if="activeProject?.avatar" :src="activeProject.avatar" class="object-cover w-full h-full" />
         <span v-else>{{ initial(activeProject?.name || '') }}</span>
       </div>
       <!-- 双行文字 -->
       <div class="flex-1 min-w-0">
-        <div class="text-xs font-medium text-gray-700 truncate leading-tight">{{ activeProject?.name || '选择账号' }}</div>
+        <div class="text-xs font-medium leading-tight text-gray-700 truncate">{{ activeProject?.name || '选择账号' }}</div>
         <div class="flex items-center gap-1 leading-tight">
           <span class="text-xs text-gray-400 truncate">{{ roleName }}</span>
           <span v-if="activeProject?.isMaster === 1" class="shrink-0 text-[9px] font-semibold px-1 py-px rounded bg-amber-100 text-amber-700">管理员</span>
@@ -42,20 +42,20 @@
     <SettingsModal v-if="showSettings" @close="showSettings = false" />
   </div>
 
-  <!-- 居中弹窗 -->
+  <!-- 左下角弹出 popover -->
   <Teleport to="body">
-    <div v-if="open" class="fixed inset-0 z-50 flex items-center justify-center p-4" @click.self="open = false">
-      <div class="absolute inset-0 bg-black/20 backdrop-blur-[2px]" @click="open = false" />
-      <div class="relative bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden" style="width: 60vw; height: 70vh;">
+    <div v-if="open" class="fixed inset-0 z-50" @click.self="open = false">
+      <div class="absolute inset-0" @click="open = false" />
+      <div class="absolute left-0 flex flex-col overflow-hidden bg-white shadow-2xl bottom-16 rounded-2xl" style="width: 320px; height: 70vh;">
         <!-- 弹窗头部 -->
         <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0">
           <span class="text-sm font-semibold text-gray-800">切换账号</span>
-          <button @click="open = false" class="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+          <button @click="open = false" class="p-1 text-gray-400 transition-colors rounded-lg hover:text-gray-600 hover:bg-gray-100">
             <X :size="16" />
           </button>
         </div>
         <!-- 可滚动项目列表 -->
-        <div class="overflow-y-auto flex-1 py-1.5">
+        <div class="scrollbar-hide overflow-y-auto flex-1 py-1.5">
           <div
             v-for="(project, idx) in store.projects"
             :key="project.id"
@@ -79,8 +79,8 @@
                   : 'bg-white',
               ]"
             >
-              <img v-if="getAvatarByOrgType(project.orgType)" :src="getAvatarByOrgType(project.orgType)!" class="w-full h-full object-cover" />
-              <img v-else-if="project.avatar" :src="project.avatar" class="w-full h-full object-cover" />
+              <img v-if="getAvatarByOrgType(project.orgType)" :src="getAvatarByOrgType(project.orgType)!" class="object-cover w-full h-full" />
+              <img v-else-if="project.avatar" :src="project.avatar" class="object-cover w-full h-full" />
               <span v-else>{{ initial(project.name) }}</span>
             </div>
             <div class="flex items-center gap-1.5 flex-1 min-w-0">

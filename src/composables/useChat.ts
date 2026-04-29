@@ -146,16 +146,19 @@ function stripAllActionTags(content: string): string {
     .trim()
 }
 
-/** 从 WKSDK message 对象中提取文本 */
+const REPLY_SEQ_PREFIX_RE = /^\[replyMessageSeq=\d+\]/
+
+/** 从 WKSDK message 对象中提取文本，并剥离 AI 回复前缀 */
 function extractText(message: unknown): string {
   if (!message || typeof message !== 'object') return ''
   const msg = message as { content?: unknown; text?: string }
   const content = msg.content as any
-  if (content && typeof content.content === 'string') return content.content
-  if (content && typeof content.text === 'string') return content.text
-  if (typeof content === 'string') return content
-  if (typeof msg.text === 'string') return msg.text
-  return ''
+  let text = ''
+  if (content && typeof content.content === 'string') text = content.content
+  else if (content && typeof content.text === 'string') text = content.text
+  else if (typeof content === 'string') text = content
+  else if (typeof msg.text === 'string') text = msg.text
+  return text.replace(REPLY_SEQ_PREFIX_RE, '')
 }
 
 function persistMessage(msg: Message) {
@@ -505,8 +508,9 @@ export function useChat() {
       }
 
       // 通过悟空IM发送消息到 AI 频道（自定义消息类型，payload 携带 requestId）
-      
-      console.log('wkIM.sendText(sysBlock + textToSend)',wkIM.sendText(sysBlock + textToSend))
+      wkIM.sendText(sysBlock + textToSend).then((e: any) => {
+        console.log(e.clientSeq)
+      })
       userMsg.status = 'done'
       persistMessage(userMsg)
     } catch {
