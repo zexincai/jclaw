@@ -220,10 +220,15 @@ const currentItems = computed<BacklogItemVo[]>(() => {
 })
 
 const roleIdSet = computed(() => new Set(roles.value.map(role => String(role.userId))))
-const roleRelatedItems = computed(() =>
-  currentItems.value.filter(item => roleIdSet.value.has(String(item.fkUserId)))
+const allRoleRelatedItems = computed(() =>
+  [0, 1, 2].flatMap(type =>
+    (typeItemsMap.value[type] ?? []).filter(item =>
+      item.mechanismType !== 1 &&
+      roleIdSet.value.has(String(item.fkUserId)),
+    ),
+  )
 )
-const headerTotal = computed(() => roleRelatedItems.value.length)
+const headerTotal = computed(() => allRoleRelatedItems.value.length)
 
 // ── 加载状态 ──────────────────────────────────────────
 const isLoading = computed(() => {
