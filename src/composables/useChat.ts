@@ -188,12 +188,22 @@ function handleIncomingAIMessage(store: ReturnType<typeof useChatStore>, bridge:
 
   const msgId = pendingStreamId || uuid()
 
-  // 平台 Action 标签
-  const platformActions = extractPlatformActions(text)
+  // 优先提取 <MSG_SPLIT> 后的内容作为 splitContents
+  let splitContents: string[] | undefined
+  let cleanedContent = text
+  const splitIdx = cleanedContent.indexOf('<MSG_SPLIT>')
+  if (splitIdx >= 0) {
+    const after = cleanedContent.substring(splitIdx + '<MSG_SPLIT>'.length).trim()
+    splitContents = [after]
+    cleanedContent = cleanedContent.substring(0, splitIdx).trim()
+  }
+
+  // 平台 Action 标签（基于去掉 <MSG_SPLIT> 后的内容）
+  const platformActions = extractPlatformActions(cleanedContent)
   const hasPlatformActions = platformActions.length > 0
-  const actionsInTable = hasPlatformActions && hasActionInTableCell(text)
+  const actionsInTable = hasPlatformActions && hasActionInTableCell(cleanedContent)
   // iframe 跳转指令
-  const iframeAction = !hasPlatformActions ? extractIframeAction(text) : undefined
+  const iframeAction = !hasPlatformActions ? extractIframeAction(cleanedContent) : undefined
   console.log('platformActions', platformActions, 'iframeAction', iframeAction)
   // 如果platformActions有值，找到第一个数据中isSkip为true时，调用 dispatchIframeAction 方法
   if (platformActions.length > 0) {
@@ -203,22 +213,15 @@ function handleIncomingAIMessage(store: ReturnType<typeof useChatStore>, bridge:
       bridge.dispatchAction(action.payload)
     }
   }
-// open_modal 指令
-  const action = !hasPlatformActions && !iframeAction ? extractAction(text) : undefined
+  // open_modal 指令
+  const action = !hasPlatformActions && !iframeAction ? extractAction(cleanedContent) : undefined
 
-  // 提取 <MSG_SPLIT> 后的内容作为 splitContents
-  let splitContents: string[] | undefined
-  let cleanedContent = stripJsBlock(hasPlatformActions
-    ? (actionsInTable ? text : stripAllActionTags(text))
+  // 进一步清理 action 标签和 JS 代码块
+  cleanedContent = stripJsBlock(hasPlatformActions
+    ? (actionsInTable ? cleanedContent : stripAllActionTags(cleanedContent))
     : (iframeAction || action)
-      ? stripActionJson(text)
-      : text)
-  const splitIdx = cleanedContent.indexOf('<MSG_SPLIT>')
-  if (splitIdx >= 0) {
-    const after = cleanedContent.substring(splitIdx + '<MSG_SPLIT>'.length).trim()
-    splitContents = [after]
-    cleanedContent = cleanedContent.substring(0, splitIdx).trim()
-  }
+      ? stripActionJson(cleanedContent)
+      : cleanedContent)
 
   const msg: Message = {
     id: msgId,
