@@ -203,35 +203,24 @@ function handleIncomingAIMessage(store: ReturnType<typeof useChatStore>, bridge:
       bridge.dispatchAction(action.payload)
     }
   }
-// open_modal 指令
+  // open_modal 指令
   const action = !hasPlatformActions && !iframeAction ? extractAction(text) : undefined
-
-  // 提取 <MSG_SPLIT> 后的内容作为 splitContents
-  let splitContents: string[] | undefined
-  let cleanedContent = stripJsBlock(hasPlatformActions
-    ? (actionsInTable ? text : stripAllActionTags(text))
-    : (iframeAction || action)
-      ? stripActionJson(text)
-      : text)
-  const splitIdx = cleanedContent.indexOf('<MSG_SPLIT>')
-  if (splitIdx >= 0) {
-    const after = cleanedContent.substring(splitIdx + '<MSG_SPLIT>'.length).trim()
-    splitContents = [after]
-    cleanedContent = cleanedContent.substring(0, splitIdx).trim()
-  }
 
   const msg: Message = {
     id: msgId,
     sessionId: pending?.sessionId ?? store.activeSessionId,
     role: 'assistant',
-    content: cleanedContent,
+    content: stripJsBlock(hasPlatformActions
+      ? (actionsInTable ? text : stripAllActionTags(text))
+      : (iframeAction || action)
+        ? stripActionJson(text)
+        : text),
     thinking: thinking || undefined,
     status: 'done',
     createdAt: new Date().toISOString(),
     // 表格内联 action 已由 MarkdownContent 渲染，不重复设置 platformActions
     ...(!actionsInTable && hasPlatformActions ? { platformActions } : {}),
     ...(action ? { actionJson: action } : {}),
-    ...(splitContents ? { splitContents } : {}),
   }
 
   // im_only 不显示 AI 回复 UI，其余模式替换占位或追加
@@ -563,7 +552,7 @@ export function useChat() {
       const data = (res as any).data
       const records: any[] = Array.isArray(data?.records) ? data.records : (Array.isArray(data) ? data : [])
       const msgs: Message[] = records
-        .flatMap((r, recordIdx) => {
+        .map(r => {
           let attachments: Attachment[] | undefined
           if (r.chatRecordFileList?.length) {
             attachments = r.chatRecordFileList.map((file: any) => {
@@ -577,54 +566,8 @@ export function useChat() {
             })
           }
 
-          let rawContent = stripSystemBlock(r.chatContent || '')
+          const rawContent = stripSystemBlock(r.chatContent || '')
           const isAssistant = String(r.chatObject) === '1'
-          const splitIdx = rawContent.indexOf('<MSG_SPLIT>')
-
-          // 非第一条记录：直接截断 <MSG_SPLIT> 及之后的内容
-          if (recordIdx !== 0 && splitIdx >= 0) {
-            // rawContent = rawContent.substring(0, splitIdx)
-            rawContent = rawContent.substring(0, splitIdx)
-          }
-
-          // 第一条记录：<MSG_SPLIT> 前的做 content，之后的收集到 splitContents
-          if (recordIdx === 0 && splitIdx >= 0) {
-            const parts = rawContent.split(/<MSG_SPLIT>/).reverse() // [后半段, 前半段]
-            const afterSplit = (parts[0] || '').trim()
-            const beforeSplit = (parts[1] || '').trim()
-
-            let platformActions: PlatformAction[] = []
-            let cleanedContent = beforeSplit
-            if (isAssistant) {
-              platformActions = extractPlatformActions(beforeSplit)
-              if (platformActions.length > 0) {
-                if (hasActionInTableCell(beforeSplit)) {
-                  platformActions = []
-                } else {
-                  cleanedContent = stripAllActionTags(beforeSplit)
-                }
-              } else {
-                const iframeAction = extractIframeAction(beforeSplit)
-                if (iframeAction) cleanedContent = stripActionJson(beforeSplit)
-              }
-              cleanedContent = stripJsBlock(cleanedContent)
-            }
-
-            return [{
-              id: String(r.pkId),
-              sessionId,
-              role: (String(r.chatObject) === '0' ? 'user' : 'assistant') as 'user' | 'assistant',
-              content: cleanedContent,
-              status: 'done' as const,
-              createdAt: r.createTime || new Date().toISOString(),
-              ...(attachments ? { attachments } : {}),
-              ...(platformActions.length > 0 ? { platformActions } : {}),
-              // 竖向展示的后半段内容（去掉 action 标签后原文显示）
-              ...(afterSplit ? { splitContents: [afterSplit] } : {}),
-            }]
-          }
-
-          // 其他记录：正常处理
           let platformActions: PlatformAction[] = []
           let cleanedContent = rawContent
 
@@ -632,6 +575,7 @@ export function useChat() {
             platformActions = extractPlatformActions(rawContent)
             if (platformActions.length > 0) {
               if (hasActionInTableCell(rawContent)) {
+                // 表格内联 action，由 MarkdownContent 渲染，不重复输出到 platformActions
                 platformActions = []
               } else {
                 cleanedContent = stripAllActionTags(rawContent)
@@ -643,7 +587,7 @@ export function useChat() {
             cleanedContent = stripJsBlock(cleanedContent)
           }
 
-          return [{
+          return {
             id: String(r.pkId),
             sessionId,
             role: (String(r.chatObject) === '0' ? 'user' : 'assistant') as 'user' | 'assistant',
@@ -652,14 +596,11 @@ export function useChat() {
             createdAt: r.createTime || new Date().toISOString(),
             ...(attachments ? { attachments } : {}),
             ...(platformActions.length > 0 ? { platformActions } : {}),
-          }]
+          }
         })
-        .filter(m => m.content.trim() || m.attachments || m.platformActions)
+        .filter(m => m.content.trim() || m.attachments)
         .reverse()
-      const existing = store.messages.filter(m => m.sessionId !== sessionId)
-      const merged = [...existing, ...msgs]
-      const latestById = new Map([...merged].reverse().map(m => [m.id, m]))
-      store.messages = [...latestById.values()].reverse()
+      store.messages = store.messages.filter(m => m.sessionId !== sessionId).concat(msgs)
     } catch { /* ignore */ }
   }
 
