@@ -598,7 +598,7 @@ export function useChat() {
 
           // 第一条记录：<MSG_SPLIT> 前的做 content，之后的收集到 splitContents
           if (recordIdx === 0 && splitIdx >= 0) {
-            let parts = rawContent.split(/<MSG_SPLIT>/).reverse().filter(v => v !== '') // [后半段, 前半段]
+            const parts = rawContent.split(/<MSG_SPLIT>/).reverse().filter(v => v !== '') // [后半段, 前半段]
             const afterSplit = (parts[0] || '').trim()
             const beforeSplit = (parts[1] || '').trim()
 
@@ -618,7 +618,7 @@ export function useChat() {
               }
               cleanedContent = stripJsBlock(cleanedContent)
             }
-            console.log('afterSplit', afterSplit)
+
             return [{
               id: String(r.pkId),
               sessionId,
