@@ -55,9 +55,9 @@
           </button>
         </div>
         <!-- 可滚动项目列表 -->
-        <div class="scrollbar-hide overflow-y-auto flex-1 py-1.5">
+        <div class="scrollbar-hover-thin overflow-y-auto flex-1 py-1.5">
           <div
-            v-for="(project, idx) in store.projects"
+            v-for="(project, idx) in orderedProjects"
             :key="project.id"
             @click="handleSwitch(project.id)"
             class="relative flex items-center gap-3 px-4 py-2.5 transition-colors"
@@ -129,6 +129,15 @@ const showSettings = ref(false)
 const activeProject = computed(() => store.projects.find(p => p.id === store.activeProjectId))
 const activeIndex = computed(() => store.projects.findIndex(p => p.id === store.activeProjectId))
 const roleName = computed(() => auth.currentRole.value?.loginName ?? '')
+const orderedProjects = computed(() => {
+  const activeId = store.activeProjectId
+  if (!activeId) return store.projects
+  return [...store.projects].sort((a, b) => {
+    if (a.id === activeId) return -1
+    if (b.id === activeId) return 1
+    return store.projects.findIndex(project => project.id === a.id) - store.projects.findIndex(project => project.id === b.id)
+  })
+})
 
 function initial(name: string) {
   return name.slice(0, 1).toUpperCase()

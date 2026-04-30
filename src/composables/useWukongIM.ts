@@ -42,6 +42,10 @@ let linkStatus = 0 // WKSDK 原始连接状态，1 = 已连接
 let currentTelephone = ''
 type IncomingMsgHandler = (message: unknown) => void
 const messageHandlers = new Set<IncomingMsgHandler>()
+
+export type StatusPacket = { clientSeq: number; messageSeq: number; reasonCode: number }
+type StatusHandler = (packet: StatusPacket) => void
+const statusHandlers = new Set<StatusHandler>()
 // ────────────────────────────────────────────────
 
 function _connectStatusListener(s: number, _reasonCode: number) {
@@ -76,12 +80,12 @@ export function useWukongIM() {
       WKSDK.shared().connectManager.addConnectStatusListener(_connectStatusListener)
       WKSDK.shared().chatManager.addMessageListener(_messageListener)
       WKSDK.shared().chatManager.addMessageStatusListener((packet: any) => {
-        console.log('消息clientSeq->', packet) // 消息客户端序号用来匹配对应的发送的消息
-        if (packet.reasonCode === 1) {
-          // 发送成功
-        } else {
-          // 发送失败
-        }
+        console.log('[WukongIM] 消息状态', packet)
+        statusHandlers.forEach(h => h({
+          clientSeq: packet.clientSeq,
+          messageSeq: packet.messageSeq,
+          reasonCode: packet.reasonCode,
+        }))
       })
       WKSDK.shared().connectManager.connect()
     } catch (err) {
@@ -98,6 +102,7 @@ export function useWukongIM() {
     linkStatus = 0
     currentTelephone = ''
     status.value = 'disconnected'
+    statusHandlers.clear()
   }
 
   function sendText(text: string) {
@@ -122,5 +127,10 @@ export function useWukongIM() {
     return () => messageHandlers.delete(handler)
   }
 
-  return { status, connect, disconnect, sendText, sendCustom, onMessage }
+  function onMessageStatus(handler: StatusHandler) {
+    statusHandlers.add(handler)
+    return () => statusHandlers.delete(handler)
+  }
+
+  return { status, connect, disconnect, sendText, sendCustom, onMessage, onMessageStatus }
 }
