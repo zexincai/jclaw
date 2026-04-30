@@ -11,7 +11,7 @@
         :style="{ backgroundColor: activeTabColor }"
       >{{ activeTabLabel.charAt(0) }}</div>
       <span class="text-sm font-semibold text-gray-800">{{ activeTabLabel }}</span>
-      <span class="text-xs text-gray-400">({{ visibleItems.length }})</span>
+      <span class="text-xs text-gray-400">({{ headerTotal }})</span>
       <div class="flex-1" />
       <button
         @click="$emit('close')"
@@ -25,9 +25,9 @@
     <div class="flex flex-1 min-h-0">
 
       <!-- 左侧角色列表 -->
-      <div class="py-1 overflow-y-auto border-r border-gray-100 w-16 shrink-0 bg-gray-50">
+      <div class="w-14 py-1 overflow-y-auto scrollbar-hover-thin border-r border-gray-100 shrink-0 bg-gray-50">
         <button
-          v-for="role in rolesWithCount"
+          v-for="(role, idx) in rolesWithCount"
           :key="role.userId"
           @click="selectedUserId = role.userId"
           class="relative flex justify-center w-full py-2 transition-colors"
@@ -42,9 +42,9 @@
           <div class="relative">
             <div
               :class="[
-                'w-10 h-10 rounded-[10px] flex items-center justify-center text-sm font-bold text-white overflow-hidden shrink-0 border border-gray-100',
+                'w-9 h-9 rounded-[9px] flex items-center justify-center text-sm font-bold text-white overflow-hidden shrink-0 border border-gray-100',
                 !getAvatarByOrgType(role.orgType) && !role.avatar
-                  ? BG_COLORS[rolesWithCount.indexOf(role) % BG_COLORS.length]
+                  ? BG_COLORS[idx % BG_COLORS.length]
                   : 'bg-white',
               ]"
             >
@@ -83,7 +83,7 @@
         </div>
 
         <!-- 列表 -->
-        <div class="flex-1 overflow-y-auto">
+        <div class="flex-1 overflow-y-auto scrollbar-hover-thin">
         <!-- 加载中 -->
         <div v-if="isLoading" class="flex flex-col items-center justify-center h-32 gap-2 text-gray-400">
           <Loader2 :size="18" class="animate-spin" />
@@ -219,6 +219,12 @@ const currentItems = computed<BacklogItemVo[]>(() => {
   return filterPrivate(typeItemsMap.value[activeTab.value] ?? [])
 })
 
+const roleIdSet = computed(() => new Set(roles.value.map(role => String(role.userId))))
+const roleRelatedItems = computed(() =>
+  currentItems.value.filter(item => roleIdSet.value.has(String(item.fkUserId)))
+)
+const headerTotal = computed(() => roleRelatedItems.value.length)
+
 // ── 加载状态 ──────────────────────────────────────────
 const isLoading = computed(() => {
   if (activeTab.value === ALL_TAB) {
@@ -235,12 +241,22 @@ const rolesWithCount = computed(() => {
     ...filterPrivate(typeItemsMap.value[1] ?? []),
     ...filterPrivate(typeItemsMap.value[2] ?? []),
   ]
+  const projectOrder = new Map(store.projects.map((project, index) => [String(project.id), index]))
+  const currentUserId = String(currentRole.value?.userId ?? store.activeProjectId ?? '')
   return roles.value
     .map(role => ({
       ...role,
       count: allItems.filter(item => String(item.fkUserId) === String(role.userId)).length,
     }))
-    .sort((a, b) => b.count - a.count)
+    .sort((a, b) => {
+      const aIsCurrent = String(a.userId) === currentUserId
+      const bIsCurrent = String(b.userId) === currentUserId
+      if (aIsCurrent !== bIsCurrent) return aIsCurrent ? -1 : 1
+      const aOrder = projectOrder.get(String(a.userId)) ?? Number.MAX_SAFE_INTEGER
+      const bOrder = projectOrder.get(String(b.userId)) ?? Number.MAX_SAFE_INTEGER
+      if (aOrder !== bOrder) return aOrder - bOrder
+      return roles.value.findIndex(role => role.userId === a.userId) - roles.value.findIndex(role => role.userId === b.userId)
+    })
 })
 
 // 默认选中第一个角色

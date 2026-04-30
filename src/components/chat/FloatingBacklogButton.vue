@@ -17,7 +17,7 @@
         >
           <span class="relative">
             待办<br/>事项
-            <span v-if="typeTotals[0]" class="badge">{{ typeTotals[0] }}</span>
+            <span v-if="roleRelatedTypeTotals[0]" class="badge">{{ roleRelatedTypeTotals[0] }}</span>
           </span>
         </button>
 
@@ -29,7 +29,7 @@
         >
           <span class="relative">
             确认<br/>消息
-            <span v-if="typeTotals[1]" class="badge">{{ typeTotals[1] }}</span>
+            <span v-if="roleRelatedTypeTotals[1]" class="badge">{{ roleRelatedTypeTotals[1] }}</span>
           </span>
         </button>
 
@@ -41,7 +41,7 @@
         >
           <span class="relative">
             提醒<br/>消息
-            <span v-if="typeTotals[2]" class="badge">{{ typeTotals[2] }}</span>
+            <span v-if="roleRelatedTypeTotals[2]" class="badge">{{ roleRelatedTypeTotals[2] }}</span>
           </span>
         </button>
       </div>
@@ -82,9 +82,11 @@
 import { ref, computed, onMounted } from 'vue'
 import logoUrl from '../../assets/info.png'
 import { useBacklog } from '../../composables/useBacklog'
+import { useAuth } from '../../composables/useAuth'
 import BacklogListPanel from './BacklogListPanel.vue'
 
-const { typeTotals } = useBacklog()
+const { typeItemsMap } = useBacklog()
+const { roles } = useAuth()
 const expanded = ref(false)
 const selectedType = ref<number | null>(null)
 const isDragging = ref(false)
@@ -126,8 +128,19 @@ function initPos() {
 
 onMounted(initPos)
 
+const roleIdSet = computed(() => new Set(roles.value.map(role => String(role.userId))))
+const roleRelatedTypeTotals = computed<Record<number, number>>(() => {
+  const totals: Record<number, number> = { 0: 0, 1: 0, 2: 0 }
+  ;[0, 1, 2].forEach(type => {
+    totals[type] = (typeItemsMap.value[type] ?? []).filter(item =>
+      item.mechanismType !== 1 &&
+      roleIdSet.value.has(String(item.fkUserId)),
+    ).length
+  })
+  return totals
+})
 const totalCount = computed(() =>
-  Object.values(typeTotals.value).reduce((a, b) => a + b, 0)
+  Object.values(roleRelatedTypeTotals.value).reduce((a, b) => a + b, 0)
 )
 
 function onMousedown(e: MouseEvent) {

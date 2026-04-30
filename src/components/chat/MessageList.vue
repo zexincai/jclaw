@@ -1,5 +1,5 @@
 <template>
-  <div ref="listEl" class="overflow-y-auto overflow-x-hidden px-4 py-4 space-y-1">
+  <div ref="listEl" class="overflow-y-auto overflow-x-hidden scrollbar-hover-thin px-4 py-4 space-y-1">
     <!-- 重连 / 断连横幅 -->
     <div v-if="store.wsStatus === 'disconnected' && !store.wsMaxRetries"
       class="sticky top-0 z-10 mb-3 py-1.5 px-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs text-yellow-700 text-center">
