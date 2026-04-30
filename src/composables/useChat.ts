@@ -19,14 +19,16 @@ function uuid(): string {
 
 let initialized = false
 let streamingId: string | null = null
-let pendingSessionId: string | null = null
 let currentChatId: number | null = null
 type SendMode = 'full' | 'im_only' | 'im' | 'session_only'
-interface PendingReply { streamingId: string | null; mode: SendMode; iframeRelay: boolean; chatId: number | null }
+interface PendingReply { requestId: number; streamingId: string | null; sessionId: string; mode: SendMode; iframeRelay: boolean; chatId: number | null }
 // replyMessageSeq 关联：clientSeq → PendingReply → messageSeq → PendingReply
 const clientSeqToReply = new Map<number, PendingReply>()
 const messageSeqToReply = new Map<number, PendingReply>()
-const REPLY_SEQ_RE = /^\[replyMessageSeq=(\d+)\]/
+const REPLY_SEQ_PREFIX_RE = /^\s*(?:\[replyMessageSeq=(\d+)\]|<replyMessageSeq>(\d+)<\/replyMessageSeq>)\s*/i
+let replyRequestSeed = 0
+let activeReplyRequestId: number | null = null
+const stoppedReplyRequestIds = new Set<number>()
 let _store: ReturnType<typeof useChatStore> | null = null
 
 interface IframeNavigateAction {
@@ -141,7 +143,11 @@ function stripAllActionTags(content: string): string {
     .trim()
 }
 
-const REPLY_SEQ_PREFIX_RE = /^\[replyMessageSeq=\d+\]/
+function extractReplySeq(text: string): number | null {
+  const match = text.match(REPLY_SEQ_PREFIX_RE)
+  if (!match) return null
+  return Number(match[1] ?? match[2])
+}
 
 /** 从 WKSDK message 对象中提取文本，并剥离 AI 回复前缀 */
 function extractText(message: unknown): string {
@@ -202,7 +208,7 @@ function handleIncomingAIMessage(store: ReturnType<typeof useChatStore>, bridge:
 
   const msg: Message = {
     id: msgId,
-    sessionId: pending?.streamingId ? (pendingSessionId ?? store.activeSessionId) : store.activeSessionId,
+    sessionId: pending?.sessionId ?? store.activeSessionId,
     role: 'assistant',
     content: stripJsBlock(hasPlatformActions
       ? (actionsInTable ? text : stripAllActionTags(text))
@@ -253,9 +259,11 @@ function handleIncomingAIMessage(store: ReturnType<typeof useChatStore>, bridge:
     }))
   }
 
-  streamingId = null
-  pendingSessionId = null
-  if (_store) _store.aiReplying = false
+  if (!pendingStreamId || pendingStreamId === streamingId) {
+    streamingId = null
+    if (pending && activeReplyRequestId === pending.requestId) activeReplyRequestId = null
+    if (_store) _store.aiReplying = false
+  }
 
   // im_only 始终 relay 到 iframe；其他模式仅当来自 iframe 时 relay
   if ((msgMode === 'im_only' || shouldRelayToIframe) && msg.content) {
@@ -302,9 +310,9 @@ export function useChat() {
       ].filter(Boolean).join('\n')
       const sysBlock = sysLines ? `<system>\n${sysLines}\n</system>\n\n` : ''
       // im_only：AI 回复不显示在 UI 也不保存后端，通过 replyMessageSeq 关联
-      const imOnlyPending: PendingReply = { streamingId: null, mode: 'im_only', iframeRelay: false, chatId: null }
+      const imOnlyPending: PendingReply = { requestId: ++replyRequestSeed, streamingId: null, sessionId: store.activeSessionId, mode: 'im_only', iframeRelay: false, chatId: null }
       wkIM.sendText(sysBlock + clean).then((e: any) => {
-        if (e?.clientSeq) clientSeqToReply.set(e.clientSeq, imOnlyPending)
+        if (e?.clientSeq && !stoppedReplyRequestIds.has(imOnlyPending.requestId)) clientSeqToReply.set(e.clientSeq, imOnlyPending)
       })
     }
 
@@ -320,7 +328,7 @@ export function useChat() {
     wkIM.onMessageStatus(({ clientSeq, messageSeq, reasonCode }) => {
       const reply = clientSeqToReply.get(clientSeq)
       clientSeqToReply.delete(clientSeq)
-      if (reasonCode === 1 && reply) {
+      if (reasonCode === 1 && reply && !stoppedReplyRequestIds.has(reply.requestId)) {
         messageSeqToReply.set(messageSeq, reply)
         console.log('[Chat] 发送成功，messageSeq:', messageSeq, '→ streamingId:', reply.streamingId)
       }
@@ -341,12 +349,12 @@ export function useChat() {
 
       // 解析 [replyMessageSeq=xxx] 前缀，找到对应 pending
       const rawText: string = msg.content?.content ?? msg.content?.text ?? ''
-      const seqMatch = rawText.match(REPLY_SEQ_RE)
+      const replySeq = extractReplySeq(rawText)
       let pending: PendingReply | undefined
-      if (seqMatch) {
-        const replySeq = parseInt(seqMatch[1], 10)
+      if (replySeq != null) {
         pending = messageSeqToReply.get(replySeq)
         if (pending) messageSeqToReply.delete(replySeq)
+        else return
         console.log('[Chat] AI 回复 replyMessageSeq:', replySeq, '命中:', !!pending)
       }
 
@@ -416,7 +424,6 @@ export function useChat() {
       }
       store.messages.push(placeholder)
       streamingId = placeholder.id
-      pendingSessionId = store.activeSessionId
       store.aiReplying = true
     }
 
@@ -450,12 +457,16 @@ export function useChat() {
     const sysBlock = sysLines ? `<system>\n${sysLines}\n</system>\n\n` : ''
 
     // 发送前快照当前 pending 数据，sendText 回调时注册 clientSeq → PendingReply
+    const requestId = ++replyRequestSeed
     const pendingReply: PendingReply = {
+      requestId,
       streamingId: mode !== 'im_only' ? streamingId : null,
+      sessionId: store.activeSessionId,
       mode,
       iframeRelay: fromIframe,
       chatId: currentChatId,
     }
+    if (pendingReply.streamingId) activeReplyRequestId = requestId
 
     // 保存用户消息到后端（full / session_only 才保存）
     if ((mode === 'full' || mode === 'session_only') && currentChatId && hasContent) {
@@ -481,7 +492,13 @@ export function useChat() {
       return
     }
     const bridge = useIframeBridge()
-    if (bridge.isVisible.value && text && mode === 'full') { return bridge.relayUserMessage(text) }
+    if (bridge.isVisible.value && text && mode === 'full') {
+      store.messages = store.messages.filter(m => m.id !== streamingId)
+      streamingId = null
+      if (activeReplyRequestId === pendingReply.requestId) activeReplyRequestId = null
+      store.aiReplying = false
+      return bridge.relayUserMessage(text)
+    }
     try {
       // 构建发送文本（包含附件 markdown）
       let textToSend = text || ''
@@ -508,7 +525,7 @@ export function useChat() {
 
       // 通过悟空IM发送消息，状态回调后通过 replyMessageSeq 与 AI 回复关联
       wkIM.sendText(sysBlock + textToSend).then((e: any) => {
-        if (e?.clientSeq) {
+        if (e?.clientSeq && !stoppedReplyRequestIds.has(pendingReply.requestId)) {
           clientSeqToReply.set(e.clientSeq, pendingReply)
           console.log('[Chat] 发送，clientSeq:', e.clientSeq)
         }
@@ -521,6 +538,7 @@ export function useChat() {
       // 移除占位消息
       store.messages = store.messages.filter(m => m.id !== streamingId)
       streamingId = null
+      if (activeReplyRequestId === pendingReply.requestId) activeReplyRequestId = null
       store.aiReplying = false
     }
   }
@@ -622,6 +640,10 @@ export function useChat() {
 
   /** 中断当前 AI 回复：保留已收到的内容，清理流式状态 */
   function stopReply() {
+    if (activeReplyRequestId != null) {
+      stoppedReplyRequestIds.add(activeReplyRequestId)
+      activeReplyRequestId = null
+    }
     if (streamingId) {
       const idx = store.messages.findIndex(m => m.id === streamingId)
       if (idx >= 0) {
@@ -635,7 +657,6 @@ export function useChat() {
       }
       streamingId = null
     }
-    pendingSessionId = null
     clientSeqToReply.clear()
     messageSeqToReply.clear()
     store.aiReplying = false
@@ -643,10 +664,11 @@ export function useChat() {
 
   function resetState() {
     streamingId = null
-    pendingSessionId = null
     currentChatId = null
+    activeReplyRequestId = null
     clientSeqToReply.clear()
     messageSeqToReply.clear()
+    stoppedReplyRequestIds.clear()
   }
 
   /**
