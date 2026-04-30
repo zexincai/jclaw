@@ -48,6 +48,8 @@ export interface Message {
   attachments?: Attachment[];
   status: "sending" | "streaming" | "done" | "error";
   createdAt: string;
+  /** <MSG_SPLIT> 后拆分出的内容片段（竖向展示），仅第一条记录有 */
+  splitContents?: string[];
 }
 
 export interface UsageStats {

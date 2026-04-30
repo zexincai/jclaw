@@ -63,6 +63,18 @@
           <ActionTagButton v-for="(act, i) in message.platformActions" :key="i" :action="act" />
         </div>
       </div>
+      <!-- 第一条消息 <MSG_SPLIT> 后半段竖向展示 -->
+      <div v-if="message.splitContents?.length" class="mt-2 flex flex-col gap-2">
+        <div v-for="(item, idx) in message.splitContents" :key="idx">
+          <template v-for="(action, ai) in parseSplitAction(item)" :key="ai">
+            <div
+              class="text-sm text-gray-600 rounded-lg px-3 py-1 mb-2 cursor-pointer border border-gray-200 hover:bg-gray-50 transition-colors w-max"
+              @click="chat.send(action.userInput); clearSplit(message.id)">
+              {{ action.label }}
+            </div>
+          </template>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -98,6 +110,9 @@ import ActionTagButton from './ActionTagButton.vue'
 import MarkdownContent from './MarkdownContent.vue'
 import AudioPlayer from '../ui/AudioPlayer.vue'
 import logoUrl from '../../assets/logo.png'
+import { useChat } from '../../composables/useChat'
+
+const chat = useChat()
 
 defineProps<{ message: Message }>()
 const emit = defineEmits<{ retry: []; 'open-modal': [action: ActionPayload]; 'image-loaded': [] }>()
@@ -112,5 +127,25 @@ function openImagePreview(url: string) {
 
 function openFile(url: string) {
   window.open(url, '_blank')
+}
+
+function clearSplit(msgId: string) {
+  const msg = store.messages.find(m => m.id === msgId)
+  if (msg) msg.splitContents = []
+}
+
+interface SplitAction { label: string; userInput: string }
+
+function parseSplitAction(raw: string): SplitAction[] {
+  const results: SplitAction[] = []
+  const re = /<pcAction>([\s\S]*?)<\/pcAction>/gi
+  let match: RegExpExecArray | null
+  while ((match = re.exec(raw)) !== null) {
+    try {
+      const parsed = JSON.parse(match[1].trim())
+      if (parsed.label) results.push({ label: parsed.label, userInput: parsed.userInput || parsed.label })
+    } catch { /* ignore */ }
+  }
+  return results
 }
 </script>
