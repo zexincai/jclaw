@@ -64,11 +64,11 @@
         </div>
       </div>
       <!-- 第一条消息 <MSG_SPLIT> 后半段竖向展示 -->
-      <div v-if="message.splitContents?.length" class="mt-2 flex flex-col gap-2">
+      <div v-if="message.splitContents?.length" class="flex flex-col gap-2 mt-2">
         <div v-for="(item, idx) in message.splitContents" :key="idx">
-          <template v-for="(action, ai) in parseSplitAction(item)" :key="ai">
+          <template v-for="(action) in parseSplitAction(item)" :key="ai">
             <div
-              class="text-sm text-gray-600 rounded-lg px-3 py-1 mb-2 cursor-pointer border border-gray-200 hover:bg-gray-50 transition-colors w-max"
+              class="px-3 py-1 mb-2 text-sm text-gray-600 transition-colors border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 w-max"
               @click="chat.send(action.userInput); clearSplit(message.id)">
               {{ action.label }}
             </div>
