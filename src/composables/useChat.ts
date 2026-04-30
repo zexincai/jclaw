@@ -483,6 +483,13 @@ export function useChat() {
       }).catch(() => { })
     }
 
+    // 发送新消息后，清除所有消息的 splitContents
+    for (const msg of store.messages) {
+      if (msg.splitContents?.length) {
+        msg.splitContents = []
+      }
+    }
+
     // session_only：已存后端记录，不发 IM，直接结束
     if (mode === 'session_only') {
       userMsg.status = 'done'
