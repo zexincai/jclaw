@@ -33,6 +33,25 @@ function detectPlatformTag(): string {
   return 'pcAction'
 }
 
+/** 修正 Markdown 表格中分隔行的列数，使其与表头列数一致，否则 marked 不会将其识别为表格 */
+function fixTableSeparators(content: string): string {
+  const lines = content.split('\n')
+  for (let i = 0; i < lines.length - 1; i++) {
+    const line = lines[i].trim()
+    const next = lines[i + 1].trim()
+    if (!line.startsWith('|') || !next.startsWith('|')) continue
+    // 判断下一行是否为分隔行（每个单元格只含 -、:、空格）
+    const cells = next.split('|').slice(1, -1)
+    if (!cells.length || !cells.every(c => /^[\s\-:]+$/.test(c))) continue
+    const headerCols = line.split('|').slice(1, -1).length
+    const sepCols = cells.length
+    if (headerCols !== sepCols && headerCols > 0) {
+      lines[i + 1] = '|' + ' --- |'.repeat(headerCols)
+    }
+  }
+  return lines.join('\n')
+}
+
 function preprocessActions(content: string): string {
   const tag = detectPlatformTag()
   const patterns = [
@@ -58,10 +77,13 @@ function preprocessActions(content: string): string {
     })
   }
 
-  // 第二步：marked 解析（占位符是普通文本，不会被干扰）
+  // 第二步：修正表格分隔行列数（AI 生成的表格分隔行列数可能与表头不匹配，导致 marked 无法识别）
+  result = fixTableSeparators(result)
+
+  // 第三步：marked 解析（占位符是普通文本，不会被干扰）
   let html = marked.parse(result) as string
 
-  // 第三步：还原占位符为按钮 HTML
+  // 第四步：还原占位符为按钮 HTML
   for (const [key, btn] of buttonMap) {
     html = html.replaceAll(key, btn)
   }

@@ -109,29 +109,18 @@ import { ChevronRight, Plus, Trash2 } from 'lucide-vue-next'
 import logoUrl from '../../assets/logo.png'
 import InputBar from './InputBar.vue'
 import { useChat } from '../../composables/useChat'
+import { useQuickTypes } from '../../composables/useQuickTypes'
 import {
   getUserAccountChatQuickList,
   addChatQuick,
   deleteChatQuick,
-  getQuickTypeList,
   type EngAgentChatQuickVO,
 } from '../../api/chatQuick'
 
 const chat = useChat()
+const { tabs, fetchTabs } = useQuickTypes()
 
-const tabs = ref<{ type: string; label: string }[]>([])
-
-onMounted(async () => {
-  try {
-    const res = await getQuickTypeList()
-    const data = (res as any).data
-    const list = Array.isArray(data) ? data : (data?.data ?? [])
-    tabs.value = list.map((item: any) => ({
-      type: String(item.quickTypeValue),
-      label: item.quickTypeTitle,
-    }))
-  } catch { /* 加载失败静默处理 */ }
-})
+onMounted(fetchTabs)
 
 const openType = ref<string | null>(null)
 const popupPos = ref<{ bottom: number; left: number } | null>(null)

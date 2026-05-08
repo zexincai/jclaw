@@ -65,12 +65,12 @@ async function handleSwitch(projectId: string) {
   store.switchingRole = true
   closePanel()
   try {
-    // 切换前清空旧用户的消息和会话状态，避免显示上个用户的聊天记录
+    // 先切换 token，再清空 UI 状态，避免 WelcomeState 等组件在 onMounted 中用旧 token 发请求
+    await auth.switchRole(projectId)
     store.messages = []
     store.sessions = []
     store.activeSessionId = ''
     setActive(projectId)
-    await auth.switchRole(projectId)
     await chat.loadSessions()
     if (!store.activeSessionId) {
       chat.newSession()

@@ -282,18 +282,18 @@ const visibleItems = computed(() =>
 function selectTab(type: number) {
   activeTab.value = type
   if (type === ALL_TAB) {
-    fetchAllTypeItems()
+    fetchAllTypeItems(true)
   } else {
-    fetchTypeItems(type)
+    fetchTypeItems(type, true)
   }
 }
 
 // ── 初始加载 ──────────────────────────────────────────
 onMounted(async () => {
   if (props.messageType === ALL_TAB) {
-    await fetchAllTypeItems()
+    await fetchAllTypeItems(true)
   } else {
-    await fetchTypeItems(props.messageType)
+    await fetchTypeItems(props.messageType, true)
   }
   chat.autoSendPrivateItems()
 })
@@ -361,11 +361,12 @@ async function confirmSwitch() {
   switchLoading.value = true
   try {
     store.switchingRole = true
+    // 先切换 token，再清空 UI 状态，避免 WelcomeState 等组件在 onMounted 中用旧 token 发请求
+    await switchRole(String(item.fkUserId!))
     store.messages = []
     store.sessions = []
     store.activeSessionId = ''
     setActive(String(item.fkUserId!))
-    await switchRole(String(item.fkUserId!))
     await chat.loadSessions()
     if (!store.activeSessionId) chat.newSession()
     confirmVisible.value = false

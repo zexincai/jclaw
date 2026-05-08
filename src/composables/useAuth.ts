@@ -5,6 +5,7 @@ import { clearMessagesCache } from '../utils/chatCache'
 import { useChat } from './useChat'
 import { useWukongIM } from './useWukongIM'
 import { useBacklog } from './useBacklog'
+import { useQuickTypes } from './useQuickTypes'
 export interface Role {
   userId: string
   loginName: string
@@ -143,6 +144,7 @@ export function useAuth() {
       token.value = newToken
       localStorage.setItem(TOKEN_STORAGE_KEY, newToken)
     }
+    useQuickTypes().reset()
     setRole(roleId)
   }
 

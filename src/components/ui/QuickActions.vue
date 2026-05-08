@@ -76,29 +76,19 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ChevronRight, Plus, Trash2 } from 'lucide-vue-next'
+import { useQuickTypes } from '../../composables/useQuickTypes'
 import {
   getUserAccountChatQuickList,
   addChatQuick,
   deleteChatQuick,
-  getQuickTypeList,
   type EngAgentChatQuickVO,
 } from '../../api/chatQuick'
 
 const emit = defineEmits<{ action: [{ title: string; words: string }] }>()
 
-const tabs = ref<{ type: string; label: string }[]>([])
+const { tabs, fetchTabs } = useQuickTypes()
 
-onMounted(async () => {
-  try {
-    const res = await getQuickTypeList()
-    const data = (res as any).data
-    const list = Array.isArray(data) ? data : (data?.data ?? [])
-    tabs.value = list.map((item: any) => ({
-      type: String(item.quickTypeValue),
-      label: item.quickTypeTitle,
-    }))
-  } catch { /* 加载失败静默处理 */ }
-})
+onMounted(fetchTabs)
 
 const openType = ref<string | null>(null)
 const popupPos = ref<{ bottom: number; left: number } | null>(null)

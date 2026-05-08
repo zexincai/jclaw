@@ -67,11 +67,11 @@ export function useBacklog() {
   }
 
   /** 拉取全部三种类型 */
-  async function fetchAllTypeItems() {
+  async function fetchAllTypeItems(force = false) {
     await Promise.all([
-      fetchTypeItems(0),
-      fetchTypeItems(1),
-      fetchTypeItems(2),
+      fetchTypeItems(0, force),
+      fetchTypeItems(1, force),
+      fetchTypeItems(2, force),
     ])
   }
 
