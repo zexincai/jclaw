@@ -279,12 +279,18 @@ const visibleItems = computed(() =>
 )
 
 // ── 切换 tab ──────────────────────────────────────────
-function selectTab(type: number) {
+function hasPrivateItems(types: number[]) {
+  return types.some(t => (typeItemsMap.value[t] ?? []).some(item => item.mechanismType === 1))
+}
+
+async function selectTab(type: number) {
   activeTab.value = type
   if (type === ALL_TAB) {
-    fetchAllTypeItems(true)
+    await fetchAllTypeItems(true)
+    if (hasPrivateItems([0, 1, 2])) chat.autoSendPrivateItems()
   } else {
-    fetchTypeItems(type, true)
+    await fetchTypeItems(type, true)
+    if (hasPrivateItems([type])) chat.autoSendPrivateItems()
   }
 }
 
@@ -295,7 +301,6 @@ onMounted(async () => {
   } else {
     await fetchTypeItems(props.messageType, true)
   }
-  chat.autoSendPrivateItems()
 })
 
 // ── 样式工具 ──────────────────────────────────────────

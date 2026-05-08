@@ -312,11 +312,11 @@ export function useChat() {
     for (const item of items) {
       const rawText = item.quickWords || ''
       if (!rawText) continue
-      const { clean, payload } = extractPromptQuick(rawText)
-      if (payload) {
-        const bridge = useIframeBridge()
-        bridge.dispatchAction((payload.params as Record<string, unknown>) ?? payload)
-      }
+      const { clean } = extractPromptQuick(rawText)
+      // if (payload) {
+      //   const bridge = useIframeBridge()
+      //   bridge.dispatchAction((payload.params as Record<string, unknown>) ?? payload)
+      // }
       const sysLines = [
         role?.userRolePrompt || '',
         ` operate-port: 2 ${actionFormatHint}`,
@@ -354,13 +354,12 @@ export function useChat() {
       const msg = rawMsg as { fromUID?: string; contentType?: number; content?: any }
       const currentUser = auth.currentRole.value
       if (!currentUser) return
-      if (msg.fromUID === `${currentUser.userId}`) return
-      if (msg.contentType !== 1 && msg.contentType !== 103 && msg.contentType !== 101) return
-      if (msg.content?.contentType == 1006) {
-        useBacklog().fetchTypeTotals().then(() => autoSendPrivateItems())
+      if (msg.content?.contentType == 1006 || msg?.contentType === 1006) {
+        useBacklog().fetchTypeTotals()
         return
       }
-
+      if (msg.fromUID === `${currentUser.userId}`) return
+      if (msg.contentType !== 1 && msg.contentType !== 103 && msg.contentType !== 101) return
       // 解析 [replyMessageSeq=xxx] 前缀，找到对应 pending
       const rawText: string = msg.content?.content ?? msg.content?.text ?? ''
       const replySeq = extractReplySeq(rawText)

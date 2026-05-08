@@ -145,6 +145,8 @@ export function useAuth() {
       localStorage.setItem(TOKEN_STORAGE_KEY, newToken)
     }
     useQuickTypes().reset()
+    // 清理旧账号的流式状态和消息序号映射，防止旧 pending 匹配到新账号的消息
+    useChat().resetState()
     setRole(roleId)
   }
 
