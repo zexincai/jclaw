@@ -21,7 +21,7 @@ let initialized = false
 let streamingId: string | null = null
 let currentChatId: number | null = null
 type SendMode = 'full' | 'im_only' | 'im' | 'session_only'
-interface PendingReply { requestId: number; streamingId: string | null; sessionId: string; mode: SendMode; iframeRelay: boolean; chatId: number | null }
+interface PendingReply { requestId: number; streamingId: string | null; sessionId: string; mode: SendMode; iframeRelay: boolean; chatId: number | null; pkId?: number; onComplete?: () => void }
 // replyMessageSeq 关联：clientSeq → PendingReply → messageSeq → PendingReply
 const clientSeqToReply = new Map<number, PendingReply>()
 const messageSeqToReply = new Map<number, PendingReply>()
@@ -30,6 +30,9 @@ let replyRequestSeed = 0
 let activeReplyRequestId: number | null = null
 const stoppedReplyRequestIds = new Set<number>()
 let _store: ReturnType<typeof useChatStore> | null = null
+/** messageType===1 待办的 IM 发送队列（一条条顺序发送）*/
+const privateItemQueue: Array<import('../api/agent').BacklogItemVo> = []
+let processingPrivateQueue = false
 
 interface IframeNavigateAction {
   isSkip: boolean
@@ -287,6 +290,14 @@ function handleIncomingAIMessage(store: ReturnType<typeof useChatStore>, bridge:
   // 提取 ```javascript ... ``` 代码块并发给 iframe
   const jsCode = extractJsBlock(rawText)
   if (jsCode) bridge.relayJsCode(jsCode)
+
+  // messageType===1 队列：将 AI 回复存入 item.quickLobsterWords，然后揭示到列表
+  if (pending?.pkId != null) {
+    const backlog = useBacklog()
+    backlog.updatePrivateItemReply(pending.pkId, rawText)
+    backlog.revealPrivateItem(pending.pkId)
+  }
+  pending?.onComplete?.()
 }
 
 export function useChat() {
@@ -296,41 +307,88 @@ export function useChat() {
   const auth = useAuth()
 
   /**
-   * 将缓存中属于当前登录角色的 mechanismType===1 待办项静默发送给 IM
-   * 不显示 UI，不保存后端记录，不重复发送同一 pkId
+   * 将缓存中属于当前登录角色的 messageType===1 待办项加入队列，逐条发送给 IM。
+   * 每条发送后等待 AI 回复，回复到来后揭示到列表再发下一条。
    */
   async function autoSendPrivateItems() {
-    const { getUnsentPrivateItems, markPrivateItemsSent } = useBacklog()
-    const roles = auth.roles.value
-    const userIds = roles.map(r => String(r.userId))
-    const items = getUnsentPrivateItems(userIds)
-    if (!items.length) return
+    const { getUnsentPrivateItems, markPrivateItemsSent, typeItemsMap } = useBacklog()
+    const currentUserId = String(auth.currentRole.value?.userId ?? '')
+    console.log('[Private] autoSendPrivateItems 触发，当前账号 userId:', currentUserId)
+    console.log('[Private] typeItemsMap[1] 全部数据:', typeItemsMap.value[1])
+    const items = getUnsentPrivateItems([currentUserId])
+    console.log('[Private] getUnsentPrivateItems 结果:', items.length, '条', items.map(i => ({ pkId: i.pkId, fkUserId: i.fkUserId })))
+    if (!items.length) {
+      console.log('[Private] 无待发送项，退出')
+      return
+    }
 
-    const role = auth.currentRole.value
-    const actionFormatHint = is360Browser() ? ' action-tag-format: bracket ' : ''
+    // 先标记已加入队列，防止重复添加（按 userId 持久化到 localStorage）
+    markPrivateItemsSent(items.filter(i => i.pkId != null))
 
-    for (const item of items) {
+    for (const item of items) privateItemQueue.push(item)
+    console.log('[Private] 已加入队列，当前队列长度:', privateItemQueue.length, '，processingPrivateQueue:', processingPrivateQueue)
+
+    if (!processingPrivateQueue) _processPrivateQueue()
+  }
+
+  /** 内部：按队列顺序逐条发送 messageType===1 待办到 IM */
+  async function _processPrivateQueue() {
+    if (processingPrivateQueue) return
+    processingPrivateQueue = true
+    console.log('[Private] 开始处理队列，共', privateItemQueue.length, '条')
+    while (privateItemQueue.length > 0) {
+      const item = privateItemQueue.shift()!
+      console.log('[Private] 处理队列项 pkId:', item.pkId, 'title:', item.title)
+      await _sendPrivateItemToIM(item)
+      console.log('[Private] pkId:', item.pkId, '已收到 AI 回复，继续下一条')
+    }
+    processingPrivateQueue = false
+    console.log('[Private] 队列处理完毕')
+  }
+
+  /** 内部：发送单条 messageType===1 待办到 IM，返回 Promise 在 AI 回复后 resolve */
+  function _sendPrivateItemToIM(item: import('../api/agent').BacklogItemVo): Promise<void> {
+    return new Promise<void>((resolve) => {
       const rawText = item.quickWords || ''
-      if (!rawText) continue
+      if (!rawText) {
+        console.log('[Private] pkId:', item.pkId, 'quickWords 为空，跳过发送')
+        resolve()
+        return
+      }
       const { clean } = extractPromptQuick(rawText)
-      // if (payload) {
-      //   const bridge = useIframeBridge()
-      //   bridge.dispatchAction((payload.params as Record<string, unknown>) ?? payload)
-      // }
+      const role = auth.currentRole.value
+      const actionFormatHint = is360Browser() ? ' action-tag-format: bracket ' : ''
       const sysLines = [
         role?.userRolePrompt || '',
         ` operate-port: 2 ${actionFormatHint}`,
         auth.token.value ? `用户令牌：${auth.token.value}` : '',
       ].filter(Boolean).join('\n')
       const sysBlock = sysLines ? `<system>\n${sysLines}\n</system>\n\n` : ''
-      // im_only：AI 回复不显示在 UI 也不保存后端，通过 replyMessageSeq 关联
-      const imOnlyPending: PendingReply = { requestId: ++replyRequestSeed, streamingId: null, sessionId: store.activeSessionId, mode: 'im_only', iframeRelay: false, chatId: null }
+      console.log('[Private] 发送 IM，pkId:', item.pkId, '内容长度:', clean.length)
+      const pending: PendingReply = {
+        requestId: ++replyRequestSeed,
+        streamingId: null,
+        sessionId: store.activeSessionId,
+        mode: 'im_only',
+        iframeRelay: false,
+        chatId: null,
+        pkId: item.pkId ?? undefined,
+        onComplete: resolve,
+      }
       wkIM.sendText(sysBlock + clean).then((e: any) => {
-        if (e?.clientSeq && !stoppedReplyRequestIds.has(imOnlyPending.requestId)) clientSeqToReply.set(e.clientSeq, imOnlyPending)
+        console.log('[Private] wkIM.sendText 返回:', e)
+        if (e?.clientSeq && !stoppedReplyRequestIds.has(pending.requestId)) {
+          clientSeqToReply.set(e.clientSeq, pending)
+          console.log('[Private] clientSeq', e.clientSeq, '已映射 pending pkId:', item.pkId)
+        } else {
+          console.warn('[Private] 发送失败或无 clientSeq，直接推进队列，e:', e)
+          resolve()
+        }
+      }).catch((err: unknown) => {
+        console.error('[Private] wkIM.sendText 异常:', err)
+        resolve()
       })
-    }
-
-    markPrivateItemsSent(items.filter(i => i.pkId != null).map(i => i.pkId!))
+    })
   }
 
   // 只初始化一次全局消息监听
@@ -751,6 +809,16 @@ export function useChat() {
     return { clean, payload }
   }
 
+  /** 从文本中提取并移除 <pcAction> 标签，返回 { clean, pcAction } */
+  function extractPcAction(text: string): { clean: string; pcAction: Record<string, unknown> | null } {
+    const match = text.match(/<pcAction>([\s\S]*?)<\/pcAction>/i)
+    if (!match) return { clean: text, pcAction: null }
+    let parsed: Record<string, unknown> | null = null
+    try { parsed = JSON.parse(match[1].trim()) } catch { /* ignore */ }
+    const clean = text.replace(match[0], '').trim()
+    return { clean, pcAction: parsed }
+  }
+
   /**
    * 待办事项"模拟发送"：
    * - quickWords 中若含 <promptQuick> 标签，提取后调用 dispatchAction，标签本身不保存到后端
@@ -763,24 +831,35 @@ export function useChat() {
     ensureSession()
 
     const rawUserText = item.quickWords || ''
-    const aiText      = item.quickLobsterWords || ''
+    const rawAiText   = item.quickLobsterWords || ''
 
     // 提取 <promptQuick> 并得到干净文本
     const { clean: userText, payload: quickPayload } = extractPromptQuick(rawUserText)
+    // 提取 <pcAction> 并剥离标签（标签本身不保存到后端）
+    const { clean: aiText, pcAction } = extractPcAction(rawAiText)
 
-    // 触发 iframe 动作（不保存到后端）
+    const bridge = useIframeBridge()
+    // quickWords 中若含 <promptQuick>，触发 dispatchAction
     if (quickPayload) {
-      const bridge = useIframeBridge()
       const params = (quickPayload.params as Record<string, unknown>) ?? quickPayload
       bridge.dispatchAction(params)
     }
+    // quickLobsterWords 中若含 <pcAction isSkip=true>，自动打开 iframe
+    if (pcAction?.isSkip) {
+      bridge.dispatchAction(pcAction)
+    }
 
-    if (!userText && !aiText) return
+    // messageType===2：只处理 AI 记录，跳过用户记录
+    const isType2 = item.messageType === 2
+    const showUser = !isType2 && !!userText
+    const showAI   = !!rawAiText
+
+    if (!showUser && !showAI) return
 
     const now = new Date().toISOString()
 
-    // 用户消息入 store
-    if (userText) {
+    // 用户消息入 store（messageType===2 不处理）
+    if (showUser) {
       const userMsg: Message = {
         id: uuid(),
         sessionId: store.activeSessionId,
@@ -793,13 +872,13 @@ export function useChat() {
       persistMessage(userMsg)
     }
 
-    // AI 消息入 store
-    if (aiText) {
+    // AI 消息入 store（保留 rawAiText 含 <pcAction> 标签，供界面渲染按钮）
+    if (showAI) {
       const aiMsg: Message = {
         id: uuid(),
         sessionId: store.activeSessionId,
         role: 'assistant',
-        content: aiText,
+        content: rawAiText,
         status: 'done',
         createdAt: now,
       }
@@ -809,14 +888,15 @@ export function useChat() {
 
     // 更新会话标题
     const session = store.sessions.find(s => s.id === store.activeSessionId)
-    if (session?.title === '新对话' && (userText || aiText)) {
-      session.title = (userText || aiText).slice(0, 20)
+    const titleSrc = isType2 ? aiText : (userText || aiText)
+    if (session?.title === '新对话' && titleSrc) {
+      session.title = titleSrc.slice(0, 20)
     }
 
     // 确保后端会话存在
     if (session && !session.backendId) {
       try {
-        const res = await addChat({ chatTitle: (userText || aiText || '待办消息').slice(0, 50) })
+        const res = await addChat({ chatTitle: (titleSrc || '待办消息').slice(0, 50) })
         const pkId = (res as any).data
         if (pkId) session.backendId = pkId
       } catch { /* ignore */ }
@@ -825,12 +905,12 @@ export function useChat() {
     const chatId = session?.backendId ?? null
     if (!chatId) return
 
-    // 保存记录到后端（不发 IM，<promptQuick> 内容已被去除）
-    if (userText) {
+    // 保存记录到后端（messageType===2 不保存用户记录）
+    if (showUser) {
       addChatRecordData({ fkChatId: chatId, chatContent: userText, chatObject: '0' }).catch(() => {})
     }
-    if (aiText) {
-      addChatRecordData({ fkChatId: chatId, chatContent: aiText, chatObject: '1' }).catch(() => {})
+    if (showAI) {
+      addChatRecordData({ fkChatId: chatId, chatContent: rawAiText, chatObject: '1' }).catch(() => {})
     }
   }
 

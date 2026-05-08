@@ -55,8 +55,16 @@ function _connectStatusListener(s: number, _reasonCode: number) {
 
 function _messageListener(message: unknown) {
   console.log('[WukongIM] 收到原始消息', message)
-
   messageHandlers.forEach((h) => h(message))
+}
+
+function _statusListener(packet: any) {
+  console.log('[WukongIM] 消息状态', packet)
+  statusHandlers.forEach(h => h({
+    clientSeq: packet.clientSeq,
+    messageSeq: packet.messageSeq,
+    reasonCode: packet.reasonCode,
+  }))
 }
 
 export function useWukongIM() {
@@ -71,7 +79,7 @@ export function useWukongIM() {
           callback(wsAddr)
         }
       } else {
-        WKSDK.shared().config.addr = wsAddr
+        WKSDK.shared().config.addr = 'ws://100.112.82.63:5200'
       }
       currentTelephone = telephone
       WKSDK.shared().config.uid = userId
@@ -79,14 +87,7 @@ export function useWukongIM() {
 
       WKSDK.shared().connectManager.addConnectStatusListener(_connectStatusListener)
       WKSDK.shared().chatManager.addMessageListener(_messageListener)
-      WKSDK.shared().chatManager.addMessageStatusListener((packet: any) => {
-        console.log('[WukongIM] 消息状态', packet)
-        statusHandlers.forEach(h => h({
-          clientSeq: packet.clientSeq,
-          messageSeq: packet.messageSeq,
-          reasonCode: packet.reasonCode,
-        }))
-      })
+      WKSDK.shared().chatManager.addMessageStatusListener(_statusListener)
       WKSDK.shared().connectManager.connect()
     } catch (err) {
       status.value = 'disconnected'
@@ -97,12 +98,12 @@ export function useWukongIM() {
   /** 断开连接并清理监听器 */
   function disconnect() {
     WKSDK.shared().chatManager.removeMessageListener(_messageListener)
+    WKSDK.shared().chatManager.removeMessageStatusListener(_statusListener)
     WKSDK.shared().connectManager.removeConnectStatusListener(_connectStatusListener)
     WKSDK.shared().connectManager.disconnect()
     linkStatus = 0
     currentTelephone = ''
     status.value = 'disconnected'
-    statusHandlers.clear()
   }
 
   function sendText(text: string) {

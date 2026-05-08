@@ -172,7 +172,7 @@ import type { BacklogItemVo } from '../../api/agent'
 const props = defineProps<{ messageType: number }>()
 const emit = defineEmits<{ close: [] }>()
 
-const { typeItemsMap, typeItemsLoadingSet, fetchTypeItems, fetchAllTypeItems } = useBacklog()
+const { typeItemsMap, typeItemsLoadingSet, revealedPrivateIds, isVisible, fetchTypeItems, fetchAllTypeItems } = useBacklog()
 const { roles, currentRole, switchRole } = useAuth()
 const chat = useChat()
 const store = useChatStore()
@@ -191,43 +191,44 @@ const activeTab = ref(props.messageType)
 const selectedUserId = ref<string>('')
 
 function tabCount(type: number) {
-  const filterPrivate = (arr: BacklogItemVo[]) => arr.filter(item => item.mechanismType !== 1)
   const filterByRole = (arr: BacklogItemVo[]) =>
     selectedUserId.value
       ? arr.filter(item => String(item.fkUserId) === String(selectedUserId.value))
       : arr
   if (type === ALL_TAB) {
     return [0, 1, 2].reduce((sum, t) =>
-      sum + filterByRole(filterPrivate(typeItemsMap.value[t] ?? [])).length, 0)
+      sum + filterByRole((typeItemsMap.value[t] ?? []).filter(isVisible)).length, 0)
   }
-  return filterByRole(filterPrivate(typeItemsMap.value[type] ?? [])).length
+  return filterByRole((typeItemsMap.value[type] ?? []).filter(isVisible)).length
 }
 
 const activeTabLabel = computed(() => TABS.find(t => t.type === activeTab.value)?.label ?? '')
 const activeTabColor  = computed(() => TABS.find(t => t.type === activeTab.value)?.color ?? '#4fa3e3')
 
-// ── 当前 tab 的原始列表（过滤 mechanismType===1 私下发送项） ──────────────
+// ── 当前 tab 的原始列表（messageType===1 仅展示已被 AI 回复揭示的项） ──────
 const currentItems = computed<BacklogItemVo[]>(() => {
-  const filterPrivate = (arr: BacklogItemVo[]) => arr.filter(item => item.mechanismType !== 1)
+  // 依赖 revealedPrivateIds 使 computed 在揭示时自动更新
+  void revealedPrivateIds.value
   if (activeTab.value === ALL_TAB) {
     return [
-      ...filterPrivate(typeItemsMap.value[0] ?? []),
-      ...filterPrivate(typeItemsMap.value[1] ?? []),
-      ...filterPrivate(typeItemsMap.value[2] ?? []),
+      ...(typeItemsMap.value[0] ?? []),
+      ...(typeItemsMap.value[1] ?? []).filter(isVisible),
+      ...(typeItemsMap.value[2] ?? []),
     ]
   }
-  return filterPrivate(typeItemsMap.value[activeTab.value] ?? [])
+  return (typeItemsMap.value[activeTab.value] ?? []).filter(isVisible)
 })
 
 const roleIdSet = computed(() => new Set(roles.value.map(role => String(role.userId))))
-const allRoleRelatedItems = computed(() =>
-  [0, 1, 2].flatMap(type =>
+const allRoleRelatedItems = computed(() => {
+  void revealedPrivateIds.value
+  return [0, 1, 2].flatMap(type =>
     (typeItemsMap.value[type] ?? []).filter(item =>
-      item.mechanismType !== 1 &&
+      isVisible(item) &&
       roleIdSet.value.has(String(item.fkUserId)),
     ),
   )
-)
+})
 const headerTotal = computed(() => allRoleRelatedItems.value.length)
 
 // ── 加载状态 ──────────────────────────────────────────
@@ -240,11 +241,11 @@ const isLoading = computed(() => {
 
 // ── 左侧角色列表（全部角色 + 全类型数量汇总） ──────
 const rolesWithCount = computed(() => {
-  const filterPrivate = (arr: BacklogItemVo[]) => arr.filter(item => item.mechanismType !== 1)
+  void revealedPrivateIds.value
   const allItems = [
-    ...filterPrivate(typeItemsMap.value[0] ?? []),
-    ...filterPrivate(typeItemsMap.value[1] ?? []),
-    ...filterPrivate(typeItemsMap.value[2] ?? []),
+    ...(typeItemsMap.value[0] ?? []),
+    ...(typeItemsMap.value[1] ?? []).filter(isVisible),
+    ...(typeItemsMap.value[2] ?? []),
   ]
   const projectOrder = new Map(store.projects.map((project, index) => [String(project.id), index]))
   const currentUserId = String(currentRole.value?.userId ?? store.activeProjectId ?? '')
@@ -280,7 +281,10 @@ const visibleItems = computed(() =>
 
 // ── 切换 tab ──────────────────────────────────────────
 function hasPrivateItems(types: number[]) {
-  return types.some(t => (typeItemsMap.value[t] ?? []).some(item => item.mechanismType === 1))
+  const result = types.some(t => (typeItemsMap.value[t] ?? []).some(item => item.messageType === 1))
+  console.log('[BacklogPanel] hasPrivateItems types:', types, '→', result,
+    'typeItemsMap[1]:', typeItemsMap.value[1]?.length ?? 0, '条')
+  return result
 }
 
 async function selectTab(type: number) {
@@ -296,10 +300,15 @@ async function selectTab(type: number) {
 
 // ── 初始加载 ──────────────────────────────────────────
 onMounted(async () => {
+  console.log('[BacklogPanel] onMounted, props.messageType:', props.messageType)
   if (props.messageType === ALL_TAB) {
     await fetchAllTypeItems(true)
+    console.log('[BacklogPanel] 加载完成，typeItemsMap[1]:', typeItemsMap.value[1]?.length ?? 0, '条')
+    if (hasPrivateItems([0, 1, 2])) chat.autoSendPrivateItems()
   } else {
     await fetchTypeItems(props.messageType, true)
+    console.log('[BacklogPanel] 加载完成，typeItemsMap[' + props.messageType + ']:', typeItemsMap.value[props.messageType]?.length ?? 0, '条')
+    if (hasPrivateItems([props.messageType])) chat.autoSendPrivateItems()
   }
 })
 

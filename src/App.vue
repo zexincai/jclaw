@@ -207,15 +207,15 @@ function goToPairing() {
 }
 
 /** 纯 IM 连接，不加载会话（重连/重试复用） */
-function connectWS() {
+function connectWS(): Promise<void> {
   const role = auth.currentRole.value
   if (!role) {
     auth.setConnectionStatus('failed', '未获取到用户信息')
-    return
+    return Promise.resolve()
   }
   auth.setConnectionStatus('verifying')
   const token = auth.token.value || localStorage.getItem('jclaw_token') || ''
-  wkIM
+  return wkIM
     .connect(String(role.userId), role.telephone, token)
     .then(() => auth.setConnectionStatus('connected'))
     .catch(() => auth.setConnectionStatus('failed', '悟空IM连接失败'))
@@ -236,20 +236,21 @@ async function initAndConnect() {
     }
   }
 
-  backlog.fetchTypeTotals().then(() => {})
-  connectWS()
+  // 数据拉取和 IM 连接并发，两者都就绪后再发送 messageType===1 的私下待办
+  await Promise.all([backlog.fetchTypeTotals(), connectWS()])
+  chat.autoSendPrivateItems()
 }
 
 function handleRetryConnection() {
   wkIM.disconnect()
   store.wsStatus = 'disconnected'
-  connectWS()
+  connectWS().then(() => chat.autoSendPrivateItems())
 }
 
 function handleUpdateToken(_token: string) {
   // 悟空IM 使用业务系统 token，无需单独配置
   wkIM.disconnect()
-  connectWS()
+  connectWS().then(() => chat.autoSendPrivateItems())
 }
 
 function handleNotPaired(_error: Error) {
@@ -284,7 +285,11 @@ watch(
     if (!newId || !oldId || newId === oldId) return
     wkIM.disconnect()
     store.wsStatus = 'disconnected'
-    connectWS()
+    backlog.reset()
+    connectWS().then(() => {
+      backlog.fetchTypeTotals()
+      chat.autoSendPrivateItems()
+    })
     syncTokenToIframe()
   },
 )

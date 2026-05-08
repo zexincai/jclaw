@@ -416,6 +416,8 @@ export interface BacklogItemVo {
   matterType?: number
   /** 模拟发送：0，私下发送：1 */
   mechanismType?: number
+  /** 消息类型（0：待办消息，1：确认消息，2：提醒消息），由缓存时本地标记 */
+  messageType?: number
   /** 主键 */
   pkId?: number
   /** 处理意见 */

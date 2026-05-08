@@ -85,7 +85,7 @@ import { useBacklog } from '../../composables/useBacklog'
 import { useAuth } from '../../composables/useAuth'
 import BacklogListPanel from './BacklogListPanel.vue'
 
-const { typeItemsMap } = useBacklog()
+const { typeItemsMap, revealedPrivateIds, isVisible } = useBacklog()
 const { roles } = useAuth()
 const expanded = ref(false)
 const selectedType = ref<number | null>(null)
@@ -130,10 +130,11 @@ onMounted(initPos)
 
 const roleIdSet = computed(() => new Set(roles.value.map(role => String(role.userId))))
 const roleRelatedTypeTotals = computed<Record<number, number>>(() => {
+  void revealedPrivateIds.value // 依赖揭示状态，AI 回复后自动更新
   const totals: Record<number, number> = { 0: 0, 1: 0, 2: 0 }
   ;[0, 1, 2].forEach(type => {
     totals[type] = (typeItemsMap.value[type] ?? []).filter(item =>
-      item.mechanismType !== 1 &&
+      isVisible(item) &&
       roleIdSet.value.has(String(item.fkUserId)),
     ).length
   })
