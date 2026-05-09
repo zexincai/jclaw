@@ -9,6 +9,10 @@ import { useIframeBridge } from './useIframeBridge'
 import { useBacklog } from './useBacklog'
 import { addChat, addChatRecordData, deleteAgent, getUserAccountChatList, chatRecordDataSearchPage, type BacklogItemVo } from '../api/agent'
 
+function safeJsonParse(str: string): unknown {
+  try { return JSON.parse(str.replace(/(\d{16,})/g, '"$1"')) } catch { return undefined }
+}
+
 function uuid(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -44,7 +48,7 @@ interface IframeNavigateAction {
 function parseJsonBlock(content: string): Record<string, unknown> | undefined {
   const match = content.match(/```json\s*([\s\S]*?)```/)
   if (!match) return undefined
-  try { return JSON.parse(match[1]) } catch { return undefined }
+  try { return safeJsonParse(match[1]) as Record<string, unknown> } catch { return undefined }
 }
 
 function extractJsBlock(content: string): string | undefined {
@@ -118,8 +122,8 @@ function extractPlatformActions(content: string): PlatformAction[] {
       let match: RegExpExecArray | null
       while ((match = re.exec(content)) !== null) {
         try {
-          const parsed = JSON.parse(match[1].trim())
-          if (parsed.label) actions.push({ label: parsed.label, payload: parsed })
+          const parsed = safeJsonParse(match[1].trim()) as Record<string, unknown> | undefined
+          if (parsed?.label) actions.push({ label: String(parsed.label), payload: parsed })
         } catch { /* ignore */ }
       }
       if (actions.length > 0) return actions
@@ -171,7 +175,7 @@ function persistMessage(msg: Message) {
   }
   const key = `jclaw_msgs_${msg.sessionId}`
   try {
-    const existing: Message[] = JSON.parse(localStorage.getItem(key) ?? '[]')
+    const existing: Message[] = safeJsonParse(localStorage.getItem(key) ?? '[]') as Message[] || []
     const idx = existing.findIndex(m => m.id === msg.id)
     if (idx >= 0) existing[idx] = msg; else existing.push(msg)
     localStorage.setItem(key, JSON.stringify(existing))
@@ -805,8 +809,7 @@ export function useChat() {
     if (!match) return { clean: text, payload: null }
     let payload: Record<string, unknown> | null = null
     try {
-      const safe = match[1].trim().replace(/(\d{16,})/g, '"$1"')
-      payload = JSON.parse(safe)
+      payload = safeJsonParse(match[1].trim()) as Record<string, unknown> | null
     } catch { /* ignore */ }
     const clean = text.replace(match[0], '').trim()
     return { clean, payload }
@@ -818,8 +821,7 @@ export function useChat() {
     if (!match) return { clean: text, pcAction: null }
     let parsed: Record<string, unknown> | null = null
     try {
-      const safe = match[1].trim().replace(/(\d{16,})/g, '"$1"')
-      parsed = JSON.parse(safe)
+      parsed = safeJsonParse(match[1].trim()) as Record<string, unknown> | null
     } catch { /* ignore */ }
     const clean = text.replace(match[0], '').trim()
     return { clean, pcAction: parsed }
