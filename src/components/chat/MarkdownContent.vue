@@ -9,7 +9,7 @@
            prose-pre:bg-gray-900 prose-pre:text-gray-100"
     :class="{ 'streaming-cursor': streaming, 'action-disabled': disabled }"
     v-html="rendered"
-    @click="disabled ? null : handleContainerClick"
+    @click="disabled ? null : handleContainerClick($event)"
   />
 </template>
 
