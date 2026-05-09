@@ -118,15 +118,44 @@ function initPos() {
     try {
       const p = JSON.parse(saved)
       pos.value = clamp(p.x, p.y)
+      if (!p._parentW) {
+        const parent = containerRef.value?.parentElement
+        const w = parent ? parent.clientWidth : window.innerWidth
+        p._parentW = w
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(p))
+      }
       return
     } catch { /* ignore */ }
   }
   // 默认右下角
   const { w, h } = getParentSize()
   pos.value = { x: w - BTN_SIZE - 16, y: h - BTN_SIZE - 80 }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...pos.value, _parentW: window.innerWidth }))
 }
 
-onMounted(initPos)
+onMounted(() => {
+  initPos()
+  // 等 template ref 解析后再初始化 ResizeObserver
+  const parent = containerRef.value?.parentElement
+  if (!parent) return
+  const ro = new ResizeObserver(() => {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (!saved) return
+    try {
+      const p = JSON.parse(saved)
+      const prevW = p._parentW
+      if (!prevW) return
+      const newW = parent.clientWidth
+      if (newW === prevW) return
+      pos.value = clamp(
+        Math.round((pos.value.x / prevW) * newW),
+        pos.value.y,
+      )
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...p, x: pos.value.x, _parentW: newW }))
+    } catch { /* ignore */ }
+  })
+  ro.observe(parent)
+})
 
 const roleIdSet = computed(() => new Set(roles.value.map(role => String(role.userId))))
 const roleRelatedTypeTotals = computed<Record<number, number>>(() => {
@@ -169,7 +198,9 @@ function onMousedown(e: MouseEvent) {
     window.removeEventListener('mouseup', onMouseup)
     if (isDragging.value) {
       isDragging.value = false
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(pos.value))
+      const parent = containerRef.value?.parentElement
+      const parentW = parent ? parent.clientWidth : window.innerWidth
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...pos.value, _parentW: parentW }))
     } else {
       // 没有拖动，视为点击
       toggle()
