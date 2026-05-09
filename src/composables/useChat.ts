@@ -804,7 +804,10 @@ export function useChat() {
     const match = text.match(/<promptQuick>([\s\S]*?)<\/promptQuick>/i)
     if (!match) return { clean: text, payload: null }
     let payload: Record<string, unknown> | null = null
-    try { payload = JSON.parse(match[1].trim()) } catch { /* ignore */ }
+    try {
+      const safe = match[1].trim().replace(/(\d{16,})/g, '"$1"')
+      payload = JSON.parse(safe)
+    } catch { /* ignore */ }
     const clean = text.replace(match[0], '').trim()
     return { clean, payload }
   }
@@ -814,7 +817,10 @@ export function useChat() {
     const match = text.match(/<pcAction>([\s\S]*?)<\/pcAction>/i)
     if (!match) return { clean: text, pcAction: null }
     let parsed: Record<string, unknown> | null = null
-    try { parsed = JSON.parse(match[1].trim()) } catch { /* ignore */ }
+    try {
+      const safe = match[1].trim().replace(/(\d{16,})/g, '"$1"')
+      parsed = JSON.parse(safe)
+    } catch { /* ignore */ }
     const clean = text.replace(match[0], '').trim()
     return { clean, pcAction: parsed }
   }
