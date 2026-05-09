@@ -3,7 +3,7 @@
     'bg-white shrink-0 transition-all duration-500',
     isWelcome ? 'border-0' : 'border-t border-gray-100'
   ]">
-    <QuickActions v-if="!isWelcome" @action="selectedAction = $event" />
+    <QuickActions v-if="!isWelcome" @action="selectedAction = $event" :aiReplying="store.aiReplying" :hasInput="!!text.trim()" :hasFiles="files.length > 0" />
     <div :class="['px-4 pb-3', isWelcome ? 'pt-0' : 'pt-2']">
       <div v-if="isRecording" class="transition-all">
         <VoiceRecorder @cancel="isRecording = false" @finish="handleVoiceFinish" />
@@ -189,6 +189,7 @@ async function handlePaste(e: ClipboardEvent) {
 }
 
 async function submit() {
+  if (store.aiReplying) return
   const t = text.value.trim()
   if (!t && files.value.length === 0) return
   toast.value = ''
@@ -200,6 +201,7 @@ async function submit() {
 }
 
 async function handleVoiceFinish(file: File) {
+  if (store.aiReplying) return  // AI回复中禁止发送
   if (isTranscribing.value) return  // 防重入
   isRecording.value = false
   isTranscribing.value = true

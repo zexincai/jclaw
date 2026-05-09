@@ -11,6 +11,9 @@
         <ChevronRight :size="10" />
       </button>
     </div>
+    <div class="flex-1" />
+    <p v-if="aiReplying && (hasInput || hasFiles)"
+      class="text-xs text-red-400 shrink-0 self-center mr-2">AI智能体正在处理事项，需等待处理完成或中止当前事项</p>
   </div>
 
   <!-- Popup -->
@@ -85,6 +88,8 @@ import {
 } from '../../api/chatQuick'
 
 const emit = defineEmits<{ action: [{ title: string; words: string }] }>()
+
+defineProps<{ aiReplying: boolean; hasInput: boolean; hasFiles: boolean }>()
 
 const { tabs, fetchTabs } = useQuickTypes()
 
