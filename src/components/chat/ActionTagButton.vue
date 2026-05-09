@@ -1,7 +1,11 @@
 <template>
   <button
-    @click="handleClick"
-    class="mt-2 flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-700 text-xs rounded-lg hover:bg-blue-100 active:bg-blue-200 transition-colors"
+    @click="disabled ? null : handleClick()"
+    :disabled="disabled"
+    class="mt-2 flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-colors"
+    :class="disabled
+      ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+      : 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 active:bg-blue-200'"
   >
     <ExternalLink :size="12" />
     {{ action.label }}
@@ -13,7 +17,7 @@ import { ExternalLink } from 'lucide-vue-next'
 import type { PlatformAction } from '../../stores/chat'
 import { useIframeBridge } from '../../composables/useIframeBridge'
 
-const props = defineProps<{ action: PlatformAction }>()
+const props = defineProps<{ action: PlatformAction; disabled?: boolean }>()
 const bridge = useIframeBridge()
 
 function handleClick() {

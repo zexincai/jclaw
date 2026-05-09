@@ -56,11 +56,11 @@
       <div class="px-4 py-3 bg-white border border-gray-100 rounded-tl-sm shadow-sm rounded-2xl">
         <ThinkingBlock v-if="message.thinking" :content="message.thinking"
           :streaming="message.status === 'streaming'" />
-        <MarkdownContent :content="message.content || ''" :streaming="message.status === 'streaming'" />
+        <MarkdownContent :content="message.content || ''" :streaming="message.status === 'streaming'" :disabled="store.aiReplying" />
         <!-- <ActionCard v-if="message.actionJson && !message.actionJson.autoOpen" :modal="message.actionJson.modal"
           @trigger="emit('open-modal', message.actionJson!)" /> -->
         <div v-if="message.platformActions?.length" class="flex flex-wrap gap-2 mt-1">
-          <ActionTagButton v-for="(act, i) in message.platformActions" :key="i" :action="act" />
+          <ActionTagButton v-for="(act, i) in message.platformActions" :key="i" :action="act" :disabled="store.aiReplying" />
         </div>
       </div>
       <!-- 第一条消息 <MSG_SPLIT> 后半段竖向展示 -->

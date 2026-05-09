@@ -29,9 +29,9 @@
         <button
           v-for="(role, idx) in rolesWithCount"
           :key="role.userId"
-          @click="selectedUserId = role.userId"
+          @click="!store.aiReplying && (selectedUserId = role.userId)"
           class="relative flex justify-center w-full py-2 transition-colors"
-          :class="selectedUserId === role.userId ? 'bg-white' : 'hover:bg-gray-100'"
+          :class="selectedUserId === role.userId ? 'bg-white' : store.aiReplying ? '' : 'hover:bg-gray-100'"
         >
           <!-- 选中竖线 -->
           <span
@@ -113,11 +113,14 @@
 
             <!-- 操作按钮 -->
             <button
-              @click="handleAction(item)"
+              @click="!store.aiReplying && handleAction(item)"
+              :disabled="store.aiReplying"
               class="shrink-0 text-xs px-2.5 py-1 rounded border transition-colors"
-              :class="actionLabel(item) === '确认'
-                ? 'border-orange-400 text-orange-500 hover:bg-orange-50'
-                : 'border-blue-400 text-blue-500 hover:bg-blue-50'"
+              :class="store.aiReplying
+                ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+                : actionLabel(item) === '确认'
+                  ? 'border-orange-400 text-orange-500 hover:bg-orange-50'
+                  : 'border-blue-400 text-blue-500 hover:bg-blue-50'"
             >{{ actionLabel(item) }}</button>
           </div>
 

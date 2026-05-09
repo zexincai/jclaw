@@ -7,9 +7,9 @@
            prose-ul:my-1 prose-ol:my-1 prose-li:my-0
            prose-code:text-pink-600 prose-code:bg-pink-50 prose-code:px-1 prose-code:rounded
            prose-pre:bg-gray-900 prose-pre:text-gray-100"
-    :class="{ 'streaming-cursor': streaming }"
+    :class="{ 'streaming-cursor': streaming, 'action-disabled': disabled }"
     v-html="rendered"
-    @click="handleContainerClick"
+    @click="disabled ? null : handleContainerClick"
   />
 </template>
 
@@ -23,6 +23,7 @@ marked.setOptions({ breaks: true })
 const props = defineProps<{
   content: string
   streaming?: boolean
+  disabled?: boolean
 }>()
 
 const bridge = useIframeBridge()
@@ -113,10 +114,16 @@ function handleContainerClick(e: MouseEvent) {
   border: 1px solid #bfdbfe;
   border-radius: 6px;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
   white-space: nowrap;
 }
 :deep(.pc-action-inline-btn:hover) {
   background: #dbeafe;
+}
+.action-disabled :deep(.pc-action-inline-btn) {
+  cursor: not-allowed;
+  color: #9ca3af;
+  background: #f3f4f6;
+  border-color: #d1d5db;
 }
 </style>
